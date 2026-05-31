@@ -6,7 +6,8 @@ from scraper.parser import strip_html, parse_date, extract_prices, build_tickets
 log=logging.getLogger(__name__); PLATFORM="Ticketline"
 HDRS={"User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36","Accept":"text/html,*/*;q=0.8","Accept-Language":"pt-PT,pt;q=0.9","Accept-Encoding":"identity"}
 def _links(session,today,horizon):
-    links,seen=[],set(); re_l=re.compile(r'href="((?:https?://(?:www\.)?ticketline\.(?:pt|sapo\.pt))?/evento/([^"?#]+))"',re.I)
+    links,seen=[],set()
+    re_l=re.compile(r'href="((?:https?://(?:www\.)?ticketline\.(?:pt|sapo\.pt))?/evento/([^"?#]+))"',re.I)
     for cat in ["104","121",""]:
         try:
             r=session.get(f"https://www.ticketline.pt/pesquisa?query=&district=&venue=&category={cat}&from={today}&to={horizon}",timeout=20)
@@ -19,8 +20,12 @@ def _links(session,today,horizon):
         except: pass
         time.sleep(0.4)
     return links
+def _session_url(html):
+    sessions=re.findall(r'href="(/evento/[^"]+/sessao/[^"]+)"',html)
+    return "https://www.ticketline.pt"+sessions[0] if sessions else None
 def scrape(sheet_state=None):
-    today,horizon=date.today(),date.today()+timedelta(days=180); s=requests.Session(); s.headers.update(HDRS); raw=[]
+    today,horizon=date.today(),date.today()+timedelta(days=180)
+    s=requests.Session(); s.headers.update(HDRS); raw=[]
     for item in _links(s,today,horizon)[:35]:
         try:
             time.sleep(0.6); r=s.get(item["url"],timeout=20); html=r.text
@@ -39,30 +44,29 @@ def scrape(sheet_state=None):
                     if not(today<=d<=horizon): continue
                 except: continue
             if sheet_state and not sheet_state.needs_scraping(name):
-                log.info(f"  [TL] Skip: {name}")
                 img=re.search(r'property="og:image"[^>]*content="([^"]+)"',html,re.I)
-                raw.append({"id":f"ticketline-{item['slug']}","name":name,"date":ed or "","platform":PLATFORM,"category":detect_category(name,item["url"]),"url":item["url"],"image_url":img.group(1) if img else "","rows":[],"src":"skipped"}); continue
+                raw.append({"id":f"ticketline-{item['slug']}","name":name,"date":ed or "","platform":PLATFORM,"category":detect_category(name,item["url"]),"url":item["url"],"session_url":item["url"],"image_url":img.group(1) if img else "","rows":[],"src":"skipped"}); continue
             text=strip_html(html); rows=extract_prices(text); src="static" if rows else ""
+            surl=_session_url(html) or item["url"]
             img=re.search(r'property="og:image"[^>]*content="([^"]+)"',html,re.I)
-            raw.append({"id":f"ticketline-{item['slug']}","name":name,"date":ed or "","platform":PLATFORM,"category":detect_category(name,item["url"]),"url":item["url"],"image_url":img.group(1) if img else "","rows":rows,"src":src})
+            raw.append({"id":f"ticketline-{item['slug']}","name":name,"date":ed or "","platform":PLATFORM,"category":detect_category(name,item["url"]),"url":item["url"],"session_url":surl,"image_url":img.group(1) if img else "","rows":rows,"src":src})
         except Exception as e: log.warning(f"TL: {e}")
     need_pw=[ev for ev in raw if not ev["rows"] and ev["src"]!="skipped"]
     if need_pw:
-        log.info(f"[TL] T2 Playwright zone extractor: {len(need_pw)}")
+        log.info(f"[TL] T2 session pages: {len(need_pw)}")
         try:
             from scraper.playwright_engine import batch_render
-            pw=batch_render([ev["url"] for ev in need_pw])
-            for ev in need_pw:
-                if pw.get(ev["url"]): ev["rows"]=pw[ev["url"]]; ev["src"]="playwright"
+            surls=[ev["session_url"] for ev in need_pw]; pw=batch_render(surls)
+            for ev,su in zip(need_pw,surls):
+                if pw.get(su): ev["rows"]=pw[su]; ev["src"]="playwright"
         except Exception as e: log.warning(f"TL T2: {e}")
     need_cart=[ev for ev in raw if not ev["rows"] and ev["src"]!="skipped"][:8]
     if need_cart:
-        log.info(f"[TL] T3 cart: {len(need_cart)}")
         try:
             from scraper.playwright_engine import batch_cart
-            ct=batch_cart([ev["url"] for ev in need_cart])
-            for ev in need_cart:
-                if ct.get(ev["url"]): ev["rows"]=ct[ev["url"]]; ev["src"]="cart"
+            curls=[ev["session_url"] for ev in need_cart]; ct=batch_cart(curls)
+            for ev,cu in zip(need_cart,curls):
+                if ct.get(cu): ev["rows"]=ct[cu]; ev["src"]="cart"
         except Exception as e: log.warning(f"TL T3: {e}")
     results=[]
     for ev in raw:

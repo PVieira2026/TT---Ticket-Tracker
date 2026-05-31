@@ -1,9 +1,11 @@
-"""FNAC — T1 static → T2 batch Playwright → T3 batch cart."""
+"""FNAC — T1 static → T2/T3 batch. Skips events that already have prices."""
 import re, time, logging
 from datetime import date, timedelta, datetime
-from typing import List, Dict
+from typing import List, Dict, Optional
 import requests
-from scraper.parser import strip_html, parse_date, extract_prices, build_tickets_detail, build_tickets_json, detect_category, FNAC_BOILERPLATE
+from scraper.parser import (strip_html, parse_date, extract_prices,
+                            build_tickets_detail, build_tickets_json,
+                            detect_category, FNAC_BOILERPLATE)
 
 log      = logging.getLogger(__name__)
 PLATFORM = "FNAC Bilheteira"
@@ -31,18 +33,17 @@ def _links(session, today, horizon):
                 if "Pack-Fnac" in path: continue
                 if eid not in seen:
                     seen.add(eid)
-                    links.append({"url": "https://bilheteira.fnac.pt"+path, "id": eid})
+                    links.append({"url":"https://bilheteira.fnac.pt"+path,"id":eid})
         except Exception: pass
         time.sleep(0.3)
     return links
 
 
-def scrape() -> List[Dict]:
+def scrape(sheet_state=None) -> List[Dict]:
     today, horizon = date.today(), date.today()+timedelta(days=180)
     s = requests.Session(); s.headers.update(HDRS)
+    raw = []
 
-    # ── Collect metadata for all events (static, fast)
-    raw_events = []
     for item in _links(s, today, horizon)[:40]:
         try:
             time.sleep(0.5)
@@ -52,6 +53,8 @@ def scrape() -> List[Dict]:
             og = re.search(r'property="og:title"[^>]*content="([^"]+)"', html, re.I)
             name = re.sub(r"<[^>]+>","", (h1.group(1) if h1 else (og.group(1) if og else ""))).replace("&amp;","&").strip()
             if not name or len(name)<3: continue
+
+            # Date
             tm = re.search(r'<time[^>]+datetime="([^"]+)"', html, re.I)
             ed = parse_date(tm.group(1)) if tm else None
             if not ed:
@@ -63,55 +66,76 @@ def scrape() -> List[Dict]:
             if ed:
                 try:
                     d = date.fromisoformat(ed)
-                    if not(today<=d<=horizon): continue
+                    if not (today <= d <= horizon): continue
                 except Exception: continue
-            # T1: static
+
+            # ── SKIP LOGIC: already has prices in sheet?
+            if sheet_state and not sheet_state.needs_playwright(name):
+                log.info(f"  [FNAC] Skip (has prices): {name}")
+                # Still include in results so sheet upsert preserves the row
+                # but mark as skipped — pipeline will prefer sheet data
+                img = re.search(r'property="og:image"[^>]*content="([^"]+)"', html, re.I)
+                raw.append({
+                    "id":f"fnac-{item['id']}","name":name,"date":ed or "",
+                    "platform":PLATFORM,"category":detect_category(name,item["url"]),
+                    "price_min":"","price_max":"","url":item["url"],
+                    "image_url":img.group(1) if img else "","rows":[],
+                    "src":"skipped",
+                })
+                continue
+
+            # T1: static text
             text  = strip_html(html)
             rows  = [r for r in extract_prices(text, True) if r["price"] not in FNAC_BOILERPLATE]
             img   = re.search(r'property="og:image"[^>]*content="([^"]+)"', html, re.I)
-            raw_events.append({
-                "id":f"fnac-{item['id']}","name":name,"date":ed or "","url":item["url"],
-                "image_url":img.group(1) if img else "","rows":rows,"src":"static" if rows else "",
-                "category":detect_category(name,item["url"]),
+            raw.append({
+                "id":f"fnac-{item['id']}","name":name,"date":ed or "",
+                "platform":PLATFORM,"category":detect_category(name,item["url"]),
+                "price_min":"","price_max":"","url":item["url"],
+                "image_url":img.group(1) if img else "","rows":rows,
+                "src":"static" if rows else "",
             })
         except Exception as e: log.warning(f"FNAC static: {e}")
 
-    # ── T2 batch: Playwright for events still missing prices (ONE browser)
-    no_prices = [ev for ev in raw_events if not ev["rows"]]
-    if no_prices:
-        log.info(f"[FNAC] T2 batch: {len(no_prices)} events need Playwright")
+    # T2: batch Playwright for events WITHOUT prices
+    need_pw = [ev for ev in raw if not ev["rows"] and ev["src"] != "skipped"]
+    if need_pw:
+        log.info(f"[FNAC] T2 batch Playwright: {len(need_pw)} events")
         try:
             from scraper.playwright_engine import batch_render
-            pw_results = batch_render([ev["url"] for ev in no_prices], filter_boilerplate=True)
-            for ev in no_prices:
-                rows = [r for r in pw_results.get(ev["url"],[]) if r["price"] not in FNAC_BOILERPLATE]
+            pw = batch_render([ev["url"] for ev in need_pw], filter_boilerplate=True)
+            for ev in need_pw:
+                rows = [r for r in pw.get(ev["url"],[]) if r["price"] not in FNAC_BOILERPLATE]
                 if rows: ev["rows"] = rows; ev["src"] = "playwright"
-        except Exception as e: log.warning(f"FNAC T2 batch: {e}")
+        except Exception as e: log.warning(f"FNAC T2: {e}")
 
-    # ── T3 batch: cart navigation for events still missing (capped)
-    still_missing = [ev for ev in raw_events if not ev["rows"]][:8]  # cap at 8
-    if still_missing:
-        log.info(f"[FNAC] T3 cart: {len(still_missing)} events")
+    # T3: cart navigation for events STILL without prices (capped at 8)
+    need_cart = [ev for ev in raw if not ev["rows"] and ev["src"] != "skipped"][:8]
+    if need_cart:
+        log.info(f"[FNAC] T3 cart: {len(need_cart)} events")
         try:
             from scraper.playwright_engine import batch_cart
-            cart_results = batch_cart([ev["url"] for ev in still_missing])
-            for ev in still_missing:
-                rows = [r for r in cart_results.get(ev["url"],[]) if r["price"] not in FNAC_BOILERPLATE]
+            ct = batch_cart([ev["url"] for ev in need_cart])
+            for ev in need_cart:
+                rows = [r for r in ct.get(ev["url"],[]) if r["price"] not in FNAC_BOILERPLATE]
                 if rows: ev["rows"] = rows; ev["src"] = "cart"
-        except Exception as e: log.warning(f"FNAC T3 batch: {e}")
+        except Exception as e: log.warning(f"FNAC T3: {e}")
 
-    # ── Build final results
+    # Build final results
     results = []
-    for ev in raw_events:
+    for ev in raw:
         rows   = ev["rows"]
         prices = [r["price"] for r in rows]
         results.append({
             "id":ev["id"],"name":ev["name"],"date":ev["date"],
             "platform":PLATFORM,"category":ev["category"],
-            "price_min":str(min(prices)) if prices else "","price_max":str(max(prices)) if prices else "",
+            "price_min":str(min(prices)) if prices else "",
+            "price_max":str(max(prices)) if prices else "",
             "url":ev["url"],"image_url":ev["image_url"],
-            "tickets_json":build_tickets_json(rows),"tickets_detail":build_tickets_detail(rows),
+            "tickets_json":build_tickets_json(rows),
+            "tickets_detail":build_tickets_detail(rows),
             "updated_at":datetime.utcnow().isoformat(),
-            "scraper_status":"ok" if prices else "ok_no_prices","price_source":ev["src"],
+            "scraper_status":"ok" if prices else "ok_no_prices",
+            "price_source":ev["src"],
         })
     return results

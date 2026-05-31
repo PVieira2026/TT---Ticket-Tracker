@@ -4,14 +4,30 @@ MONTHS_PT={"jan":1,"fev":2,"mar":3,"abr":4,"mai":5,"jun":6,"jul":7,"ago":8,"set"
 FESTIVAL_KW=["festival","fest","alive","super bock","meo","vodafone","paredes de coura","primavera sound","rock in rio","summer","open air","outdoor","nos alive","neopop","boom"]
 CONCERT_KW=["tour","concerto","ao vivo","live","arena","coliseu","pavilhao","altice arena","campo pequeno","digressao"]
 FNAC_BOILERPLATE={1.0,1.5,10.0,25.0,50.0,75.0,120.0}
+SECTOR_BLACKLIST={"sinopse","espetaculo","espet\u00e1culo","descri","informa","sobre","notas","nota:","aviso","termos","politica","privaci","cookies","rgpd","seguran","reserva","seguro bilheteira","chamada","acesso","publicidade"}
+HIGH_REL=["coldplay","radiohead","ed sheeran","billie eilish","taylor swift","the weeknd","beyonce","rihanna","adele","harry styles","depeche mode","the national","arcade fire","arctic monkeys","metallica","iron maiden","foo fighters","red hot chili peppers","guns n roses","blur","oasis","placebo","laura pausini","anitta","anastacia","brandi carlile","dua lipa","imagine dragons","maroon 5","lana del rey","the cure","massive attack","nos alive","super bock","mares vivas","neopop","paredes de coura","primavera sound","rock in rio","evillive","meo mares","sudowoodo"]
+def score_relevance(name,url=""):
+    t=(name+" "+url).lower()
+    if any(k in t for k in HIGH_REL): return 3
+    if any(k in t for k in ["festival","altice","coliseu","pavilh","campo pequeno","arena"]): return 2
+    return 1
+def is_valid_sector(sector):
+    s=sector.lower().strip()
+    if len(s)<2: return False
+    for term in SECTOR_BLACKLIST:
+        if s.startswith(term) or term in s: return False
+    if re.match(r"^(menu|login|faq|home|ajuda|contacto|newsletter|cookies|privacidade)$",s,re.I): return False
+    return True
 def detect_category(name,url=""):
     t=(name+" "+url).lower()
     if any(k in t for k in FESTIVAL_KW): return "Festival"
     if any(k in t for k in CONCERT_KW): return "Concerto"
     return "Evento"
 def strip_html(html):
-    html=re.sub(r"<script[\s\S]*?</script>"," ",html,flags=re.I); html=re.sub(r"<style[\s\S]*?</style>"," ",html,flags=re.I)
-    html=re.sub(r"<br\s*/?>","\n",html,flags=re.I); html=re.sub(r"<[^>]+"," ",html)
+    html=re.sub(r"<script[\s\S]*?</script>"," ",html,flags=re.I)
+    html=re.sub(r"<style[\s\S]*?</style>"," ",html,flags=re.I)
+    html=re.sub(r"<br\s*/?>","\n",html,flags=re.I)
+    html=re.sub(r"<[^>]+"," ",html)
     html=html.replace("&nbsp;"," ").replace("&amp;","&").replace("&#8364;","\u20ac")
     return re.sub(r"[ \t]+"," ",html).strip()
 def parse_date(raw):
@@ -31,9 +47,10 @@ def parse_date(raw):
 def extract_prices(text,filter_boilerplate=False):
     rows,seen=[],set()
     def add(sector,price,note="",sold=False):
-        sector=sector.strip(); key=f"{sector}|{price}"
-        if key in seen or price<1 or price>2500 or len(sector)<2: return
-        if re.match(r"^(menu|login|faq|home|ajuda|contacto|newsletter|cookies)$",sector,re.I): return
+        sector=sector.strip()
+        if not is_valid_sector(sector): return
+        key=f"{sector}|{price}"
+        if key in seen or price<1 or price>2500: return
         if 2020<price<2030: return
         if filter_boilerplate and price in FNAC_BOILERPLATE: return
         seen.add(key); rows.append({"sector":sector,"price":round(price,2),"note":note.strip().strip("()[]"),"sold_out":bool(sold)})
@@ -54,8 +71,8 @@ def build_tickets_detail(rows):
     if not rows: return ""
     lines=["Bilhetes"]
     for r in rows:
-        note=f" ({r['note']})" if r["note"] else ""; sold=" ESGOTADO" if r["sold_out"] else ""
-        lines.append(f"  {r['sector']}: {r['price']}\u20ac{note}{sold}")
+        note=(" ("+r["note"]+")") if r["note"] else ""; sold=" ESGOTADO" if r["sold_out"] else ""
+        lines.append("  "+r["sector"]+": "+str(r["price"])+"\u20ac"+note+sold)
     return "\n".join(lines)
 def build_tickets_json(rows):
     if not rows: return ""

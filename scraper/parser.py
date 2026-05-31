@@ -1,3 +1,4 @@
+"""Shared HTML parsing, price extraction and category detection."""
 import re, json
 from typing import List, Dict, Optional
 
@@ -9,9 +10,9 @@ MONTHS_PT = {
 }
 FESTIVAL_KW = ["festival","fest","alive","super bock","meo","vodafone",
                "paredes de coura","primavera sound","rock in rio","summer",
-               "open air","outdoor","nos alive"]
-CONCERT_KW  = ["tour","concerto","ao vivo","live","arena","coliseu","pavilhao"]
-
+               "open air","outdoor","nos alive","neopop","boom","burning"]
+CONCERT_KW  = ["tour","concerto","ao vivo","live","arena","coliseu",
+               "pavilhao","altice arena","campo pequeno","digressao"]
 
 def detect_category(name: str, url: str = "") -> str:
     t = (name + " " + url).lower()
@@ -19,15 +20,13 @@ def detect_category(name: str, url: str = "") -> str:
     if any(k in t for k in CONCERT_KW):  return "Concerto"
     return "Evento"
 
-
 def strip_html(html: str) -> str:
     html = re.sub(r"<script[\s\S]*?</script>", " ", html, flags=re.I)
     html = re.sub(r"<style[\s\S]*?</style>",   " ", html, flags=re.I)
-    html = re.sub(r"<br\s*/?>",                "\n", html, flags=re.I)
+    html = re.sub(r"<br\s*/?>", "\n", html, flags=re.I)
     html = re.sub(r"<[^>]+>", " ", html)
-    html = html.replace("&nbsp;", " ").replace("&amp;", "&").replace("&#8364;", "\u20ac")
+    html = html.replace("&nbsp;"," ").replace("&amp;","&").replace("&#8364;","\u20ac")
     return re.sub(r"[ \t]+", " ", html).strip()
-
 
 def parse_date(raw: str) -> Optional[str]:
     if not raw: return None
@@ -35,7 +34,7 @@ def parse_date(raw: str) -> Optional[str]:
         from datetime import datetime
         d = datetime.fromisoformat(raw.strip().split("T")[0])
         if d.year > 2020: return d.strftime("%Y-%m-%d")
-    except Exception: pass
+    except: pass
     m = re.search(r"(\d{2})/(\d{2})/(\d{4})", raw)
     if m: return f"{m.group(3)}-{m.group(2)}-{m.group(1)}"
     m = re.search(r"(\d{1,2})\s+(?:de\s+)?([a-z\u00e1\u00e9\u00ed\u00f3\u00fa\u00e7]+)(?:\s+de)?\s+(\d{4})", raw, re.I)
@@ -44,52 +43,67 @@ def parse_date(raw: str) -> Optional[str]:
         if mon: return f"{m.group(3)}-{mon:02d}-{int(m.group(1)):02d}"
     return None
 
+# Prices that are FNAC boilerplate (insurance, filter values) — never real ticket prices
+FNAC_BOILERPLATE = {1.0, 1.5, 10.0, 25.0, 50.0, 75.0, 120.0}
 
-def extract_prices(text: str) -> List[Dict]:
+def extract_prices(text: str, filter_boilerplate: bool = False) -> List[Dict]:
+    """
+    Multi-pattern extractor. Returns [] if nothing found — NEVER invents values.
+    Set filter_boilerplate=True for FNAC pages.
+    """
     rows, seen = [], set()
 
     def add(sector, price, note="", sold=False):
-        key = f"{sector.strip()}|{price}"
-        if key in seen or price < 1 or price > 2500 or len(sector.strip()) < 2: return
-        if re.match(r"^(menu|login|faq|home|ajuda|contacto|newsletter)$", sector.strip(), re.I): return
+        sector = sector.strip()
+        key    = f"{sector}|{price}"
+        if key in seen: return
+        if price < 1 or price > 2500: return
+        if len(sector) < 2: return
+        if re.match(r"^(menu|login|faq|home|ajuda|contacto|newsletter|cookies|privacidade)$", sector, re.I): return
+        if 2020 < price < 2030: return  # reject years
+        if filter_boilerplate and price in FNAC_BOILERPLATE: return
         seen.add(key)
-        rows.append({"sector": sector.strip(), "price": round(price, 2),
+        rows.append({"sector": sector, "price": round(price, 2),
                      "note": note.strip().strip("()[]"), "sold_out": sold})
 
-    # A: single-dash  "Sector - 45E"  (EIN format)
+    # A: "Sector - 45\u20ac (note)"  — EIN single-dash
     for m in re.finditer(
         r"([A-Za-z\u00c0-\u017e][^\n\u20ac\-]{1,60}?)\s*-\s*(\d+(?:[,.]\d+)?)\s*\u20ac([^\n\u20ac]{0,80})?",
         text, re.M
     ):
         n = m.group(3) or ""
-        add(m.group(1), float(m.group(2).replace(",", ".")), n, bool(re.search(r"esgotado|sold.?out", n, re.I)))
+        add(m.group(1), float(m.group(2).replace(",",".")), n,
+            bool(re.search(r"esgotado|sold.?out|indispon", n, re.I)))
 
-    # B: em-dash  "Sector -- 45E"  (FNAC format)
+    # B: "Sector \u2014 45\u20ac"  — em-dash (FNAC descriptions)
     for m in re.finditer(
         r"([A-Za-z\u00c0-\u017e][^\n\u20ac\u2014\u2013]{1,60}?)\s*[\u2014\u2013]\s*(\d+(?:[,.]\d+)?)\s*\u20ac([^\n\u20ac]{0,80})?",
         text, re.M
     ):
         n = m.group(3) or ""
-        add(m.group(1), float(m.group(2).replace(",", ".")), n, bool(re.search(r"esgotado|sold.?out", n, re.I)))
+        add(m.group(1), float(m.group(2).replace(",",".")), n,
+            bool(re.search(r"esgotado|sold.?out|indispon", n, re.I)))
 
+    # C: "Sector: 45\u20ac"
     if not rows:
         for m in re.finditer(
             r"([A-Za-z\u00c0-\u017e][^\u20ac:\n]{2,50}):\s*(\d+(?:[,.]\d+)?)\s*\u20ac([^\n\u20ac]{0,60})?",
             text, re.M
         ):
-            add(m.group(1), float(m.group(2).replace(",", ".")), (m.group(3) or "").strip())
+            add(m.group(1), float(m.group(2).replace(",",".")), (m.group(3) or "").strip())
 
+    # D: "de 60\u20ac a 150\u20ac" range
     if not rows:
         for m in re.finditer(r"de\s*(\d+(?:[,.]\d+)?)\s*\u20ac\s*a\s*(\d+(?:[,.]\d+)?)\s*\u20ac", text, re.I):
-            add("Minimo (lote)", float(m.group(1).replace(",", ".")))
-            add("Maximo (lote)", float(m.group(2).replace(",", ".")))
+            add("Min (lote)", float(m.group(1).replace(",",".")))
+            add("Max (lote)", float(m.group(2).replace(",",".")))
 
+    # E: "45,00\u20ac" — precise decimal, last resort
     if not rows:
-        for m in re.finditer(r"(\d+(?:[,.]\d+)?)\s*\u20ac", text):
-            add("Geral", float(m.group(1).replace(",", ".")))
+        for m in re.finditer(r"(\d+[,.]\d{2})\s*\u20ac", text):
+            add("Geral", float(m.group(1).replace(",",".")))
 
     return rows
-
 
 def build_tickets_detail(rows: List[Dict]) -> str:
     if not rows: return ""
@@ -99,7 +113,6 @@ def build_tickets_detail(rows: List[Dict]) -> str:
         sold = " ESGOTADO" if r["sold_out"] else ""
         lines.append(f"  {r['sector']}: {r['price']}\u20ac{note}{sold}")
     return "\n".join(lines)
-
 
 def build_tickets_json(rows: List[Dict]) -> str:
     if not rows: return ""

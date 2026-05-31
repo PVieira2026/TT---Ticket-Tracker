@@ -1,32 +1,20 @@
 name: TT Tracker Scraper
-
 on:
   schedule:
-    # ── Weekly: every Monday at 08:00 UTC
     - cron: "0 8 * * 1"
-    # ── Uncomment for monthly (1st of each month):
-    # - cron: "0 8 1 * *"
-  workflow_dispatch:  # keep manual trigger for testing
-
+  workflow_dispatch:
 jobs:
   scrape:
     runs-on: ubuntu-latest
     timeout-minutes: 25
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
-
-      - name: Install dependencies
-        run: pip install requests gspread google-auth playwright beautifulsoup4 lxml pandas
-
-      - name: Install Playwright browsers
-        run: playwright install chromium --with-deps
-
+      - run: pip install requests gspread google-auth playwright beautifulsoup4 lxml pandas
+      - run: playwright install chromium --with-deps
       - name: Run scraper
         env:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}

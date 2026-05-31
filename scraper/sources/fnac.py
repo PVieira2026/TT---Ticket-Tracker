@@ -1,4 +1,4 @@
-"""FNAC — T1 static → T2/T3 batch. Skips events that already have prices."""
+"""FNAC — skip only if detailed breakdown exists."""
 import re, time, logging
 from datetime import date, timedelta, datetime
 from typing import List, Dict, Optional
@@ -49,12 +49,14 @@ def scrape(sheet_state=None) -> List[Dict]:
             time.sleep(0.5)
             r = s.get(item["url"], timeout=20); html = r.text
             if len(html) < 3000: continue
+
             h1 = re.search(r"<h1[^>]*>([^<]+)</h1>", html, re.I)
             og = re.search(r'property="og:title"[^>]*content="([^"]+)"', html, re.I)
-            name = re.sub(r"<[^>]+>","", (h1.group(1) if h1 else (og.group(1) if og else ""))).replace("&amp;","&").strip()
-            if not name or len(name)<3: continue
+            name = re.sub(r"<[^>]+>","",
+                          (h1.group(1) if h1 else (og.group(1) if og else ""))
+                          ).replace("&amp;","&").strip()
+            if not name or len(name) < 3: continue
 
-            # Date
             tm = re.search(r'<time[^>]+datetime="([^"]+)"', html, re.I)
             ed = parse_date(tm.group(1)) if tm else None
             if not ed:
@@ -69,38 +71,34 @@ def scrape(sheet_state=None) -> List[Dict]:
                     if not (today <= d <= horizon): continue
                 except Exception: continue
 
-            # ── SKIP LOGIC: already has prices in sheet?
-            if sheet_state and not sheet_state.needs_playwright(name):
-                log.info(f"  [FNAC] Skip (has prices): {name}")
-                # Still include in results so sheet upsert preserves the row
-                # but mark as skipped — pipeline will prefer sheet data
-                img = re.search(r'property="og:image"[^>]*content="([^"]+)"', html, re.I)
+            img = re.search(r'property="og:image"[^>]*content="([^"]+)"', html, re.I)
+
+            # ── SKIP: only if detailed breakdown already exists
+            if sheet_state and not sheet_state.needs_scraping(name):
+                log.info(f"  [FNAC] Skip (detailed prices exist): {name}")
                 raw.append({
                     "id":f"fnac-{item['id']}","name":name,"date":ed or "",
                     "platform":PLATFORM,"category":detect_category(name,item["url"]),
-                    "price_min":"","price_max":"","url":item["url"],
-                    "image_url":img.group(1) if img else "","rows":[],
-                    "src":"skipped",
+                    "url":item["url"],"image_url":img.group(1) if img else "",
+                    "rows":[],"src":"skipped",
                 })
                 continue
 
-            # T1: static text
+            # T1: static text extraction
             text  = strip_html(html)
             rows  = [r for r in extract_prices(text, True) if r["price"] not in FNAC_BOILERPLATE]
-            img   = re.search(r'property="og:image"[^>]*content="([^"]+)"', html, re.I)
             raw.append({
                 "id":f"fnac-{item['id']}","name":name,"date":ed or "",
                 "platform":PLATFORM,"category":detect_category(name,item["url"]),
-                "price_min":"","price_max":"","url":item["url"],
-                "image_url":img.group(1) if img else "","rows":rows,
-                "src":"static" if rows else "",
+                "url":item["url"],"image_url":img.group(1) if img else "",
+                "rows":rows,"src":"static" if rows else "",
             })
         except Exception as e: log.warning(f"FNAC static: {e}")
 
-    # T2: batch Playwright for events WITHOUT prices
+    # T2: batch Playwright (only for events that need it)
     need_pw = [ev for ev in raw if not ev["rows"] and ev["src"] != "skipped"]
     if need_pw:
-        log.info(f"[FNAC] T2 batch Playwright: {len(need_pw)} events")
+        log.info(f"[FNAC] T2 Playwright batch: {len(need_pw)} events")
         try:
             from scraper.playwright_engine import batch_render
             pw = batch_render([ev["url"] for ev in need_pw], filter_boilerplate=True)
@@ -109,10 +107,10 @@ def scrape(sheet_state=None) -> List[Dict]:
                 if rows: ev["rows"] = rows; ev["src"] = "playwright"
         except Exception as e: log.warning(f"FNAC T2: {e}")
 
-    # T3: cart navigation for events STILL without prices (capped at 8)
+    # T3: cart navigation — only for events STILL without prices (cap 8)
     need_cart = [ev for ev in raw if not ev["rows"] and ev["src"] != "skipped"][:8]
     if need_cart:
-        log.info(f"[FNAC] T3 cart: {len(need_cart)} events")
+        log.info(f"[FNAC] T3 cart navigation: {len(need_cart)} events")
         try:
             from scraper.playwright_engine import batch_cart
             ct = batch_cart([ev["url"] for ev in need_cart])
@@ -121,7 +119,6 @@ def scrape(sheet_state=None) -> List[Dict]:
                 if rows: ev["rows"] = rows; ev["src"] = "cart"
         except Exception as e: log.warning(f"FNAC T3: {e}")
 
-    # Build final results
     results = []
     for ev in raw:
         rows   = ev["rows"]

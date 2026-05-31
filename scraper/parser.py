@@ -44,29 +44,69 @@ def parse_date(raw):
         mon=MONTHS_PT.get(m.group(2).lower()) or MONTHS_PT.get(m.group(2)[:3].lower())
         if mon: return f"{m.group(3)}-{mon:02d}-{int(m.group(1)):02d}"
     return None
-def extract_prices(text,filter_boilerplate=False):
-    rows,seen=[],set()
-    def add(sector,price,note="",sold=False):
-        sector=sector.strip()
+
+def extract_prices(text, filter_boilerplate=False):
+    rows, seen = [], set()
+    def add(sector, price, note="", sold=False):
+        sector = sector.strip()
         if not is_valid_sector(sector): return
-        key=f"{sector}|{price}"
-        if key in seen or price<1 or price>2500: return
-        if 2020<price<2030: return
+        key = f"{sector}|{price}"
+        if key in seen or price < 1 or price > 2500: return
+        if 2020 < price < 2030: return
         if filter_boilerplate and price in FNAC_BOILERPLATE: return
-        seen.add(key); rows.append({"sector":sector,"price":round(price,2),"note":note.strip().strip("()[]"),"sold_out":bool(sold)})
-    for m in re.finditer(r"([A-Za-z\u00c0-\u017e][^\n\u20ac\-]{1,60}?)\s*-\s*(\d+(?:[,.]\d+)?)\s*\u20ac([^\n\u20ac]{0,80})?",text,re.M):
-        n=m.group(3) or ""; add(m.group(1),float(m.group(2).replace(",",".")),n,bool(re.search(r"esgotado|sold.?out",n,re.I)))
-    for m in re.finditer(r"([A-Za-z\u00c0-\u017e][^\n\u20ac\u2014\u2013]{1,60}?)\s*[\u2014\u2013]\s*(\d+(?:[,.]\d+)?)\s*\u20ac([^\n\u20ac]{0,80})?",text,re.M):
-        n=m.group(3) or ""; add(m.group(1),float(m.group(2).replace(",",".")),n,bool(re.search(r"esgotado|sold.?out",n,re.I)))
+        seen.add(key)
+        rows.append({"sector": sector, "price": round(price, 2),
+                     "note": note.strip().strip("()[]"), "sold_out": bool(sold)})
+
+    # A: "Sector - 45\u20ac"  \u2190 single dash
+    for m in re.finditer(
+        r"([A-Za-z\u00c0-\u017e][^\n\u20ac\-]{1,60}?)\s*-\s*(\d+(?:[,.]\d+)?)\s*\u20ac([^\n\u20ac]{0,80})?",
+        text, re.M
+    ):
+        n = m.group(3) or ""
+        add(m.group(1), float(m.group(2).replace(",",".")), n, bool(re.search(r"esgotado|sold.?out",n,re.I)))
+
+    # B: "Sector \u2014 45\u20ac"  \u2190 em-dash
+    for m in re.finditer(
+        r"([A-Za-z\u00c0-\u017e][^\n\u20ac\u2014\u2013]{1,60}?)\s*[\u2014\u2013]\s*(\d+(?:[,.]\d+)?)\s*\u20ac([^\n\u20ac]{0,80})?",
+        text, re.M
+    ):
+        n = m.group(3) or ""
+        add(m.group(1), float(m.group(2).replace(",",".")), n, bool(re.search(r"esgotado|sold.?out",n,re.I)))
+
+    # C: "Sector | 45\u20ac"  \u2190 PIPE separator (FNAC descriptions)
+    # THIS WAS THE MISSING PATTERN.
+    # Festival Panda: "Bilhete Individual | 23\u20ac"  "Pack 3 bilhetes |  64,50\u20ac"
+    for m in re.finditer(
+        r"([A-Za-z\u00c0-\u017e][^\n\u20ac|]{1,60}?)\s*\|\s*(\d+(?:[,.]\d+)?)\s*\u20ac([^\n\u20ac]{0,80})?",
+        text, re.M
+    ):
+        n = m.group(3) or ""
+        add(m.group(1), float(m.group(2).replace(",",".")), n, bool(re.search(r"esgotado|sold.?out",n,re.I)))
+
+    # ── Fallbacks (only if A+B+C found nothing) ──────────────────────────────
+
+    # D: "Sector: 45\u20ac"
     if not rows:
-        for m in re.finditer(r"([A-Za-z\u00c0-\u017e][^\u20ac:\n]{2,50}):\s*(\d+(?:[,.]\d+)?)\s*\u20ac([^\n\u20ac]{0,60})?",text,re.M):
-            add(m.group(1),float(m.group(2).replace(",",".")),(m.group(3) or "").strip())
+        for m in re.finditer(
+            r"([A-Za-z\u00c0-\u017e][^\u20ac:\n]{2,50}):\s*(\d+(?:[,.]\d+)?)\s*\u20ac([^\n\u20ac]{0,60})?",
+            text, re.M
+        ):
+            add(m.group(1), float(m.group(2).replace(",",".")), (m.group(3) or "").strip())
+
+    # E: "de X\u20ac a Y\u20ac"  \u2190 price range
     if not rows:
         for m in re.finditer(r"de\s*(\d+(?:[,.]\d+)?)\s*\u20ac\s*a\s*(\d+(?:[,.]\d+)?)\s*\u20ac",text,re.I):
-            add("Min (lote)",float(m.group(1).replace(",","."))); add("Max (lote)",float(m.group(2).replace(",",".")))
+            add("Min (lote)", float(m.group(1).replace(",",".")))
+            add("Max (lote)", float(m.group(2).replace(",",".")))
+
+    # F: "XX,XX\u20ac"  \u2190 generic, absolute last resort
     if not rows:
-        for m in re.finditer(r"(\d+[,.]\d{2})\s*\u20ac",text): add("Geral",float(m.group(1).replace(",",".")))
+        for m in re.finditer(r"(\d+[,.]\d{2})\s*\u20ac", text):
+            add("Geral", float(m.group(1).replace(",",".")))
+
     return rows
+
 def build_tickets_detail(rows):
     if not rows: return ""
     lines=["Bilhetes"]
@@ -74,7 +114,9 @@ def build_tickets_detail(rows):
         note=(" ("+r["note"]+")") if r["note"] else ""; sold=" ESGOTADO" if r["sold_out"] else ""
         lines.append("  "+r["sector"]+": "+str(r["price"])+"\u20ac"+note+sold)
     return "\n".join(lines)
+
 def build_tickets_json(rows):
     if not rows: return ""
     prices=[r["price"] for r in rows]
-    return json.dumps({"summary":{"min":min(prices),"max":max(prices),"currency":"EUR"},"categories":[{"name":"Bilhetes","rows":rows}]},ensure_ascii=False)
+    return json.dumps({"summary":{"min":min(prices),"max":max(prices),"currency":"EUR"},
+                       "categories":[{"name":"Bilhetes","rows":rows}]},ensure_ascii=False)

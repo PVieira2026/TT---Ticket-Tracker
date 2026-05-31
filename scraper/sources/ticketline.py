@@ -1,4 +1,4 @@
-"""Ticketline — T1: HTML → T2: Playwright → T3: cart."""
+"""Ticketline — T1 static → T2/T3 batch Playwright."""
 import re, time, logging
 from datetime import date, timedelta, datetime
 from typing import List, Dict
@@ -24,17 +24,17 @@ def _links(session,today,horizon):
                 eid_m=re.search(r"(\d+)$",slug); eid=eid_m.group(1) if eid_m else slug
                 if eid not in seen: seen.add(eid); links.append({"url":full,"slug":slug})
         except: pass
-        time.sleep(0.5)
+        time.sleep(0.4)
     return links
 
 
 def scrape() -> List[Dict]:
     today,horizon=date.today(),date.today()+timedelta(days=180)
     s=requests.Session(); s.headers.update(HDRS)
-    results=[]
+    raw=[]
     for item in _links(s,today,horizon)[:35]:
         try:
-            time.sleep(0.8)
+            time.sleep(0.6)
             r=s.get(item["url"],timeout=20); html=r.text
             if len(html)<500: continue
             h1=re.search(r"<h1[^>]*>([^<]+)</h1>",html,re.I)
@@ -53,36 +53,45 @@ def scrape() -> List[Dict]:
                     d=date.fromisoformat(ed)
                     if not(today<=d<=horizon): continue
                 except: continue
-
-            # T1
             text=strip_html(html); rows=extract_prices(text); src="static" if rows else ""
-
-            # T2
-            if not rows:
-                try:
-                    from scraper.playwright_engine import render_and_extract
-                    pw=render_and_extract(item["url"])
-                    if pw: rows=pw; src="playwright"
-                except Exception as e: log.warning(f"T2 TL: {e}")
-
-            # T3
-            if not rows:
-                try:
-                    from scraper.playwright_engine import cart_navigate
-                    ct=cart_navigate(item["url"])
-                    if ct: rows=ct; src="cart"
-                except Exception as e: log.warning(f"T3 TL: {e}")
-
-            prices=[r["price"] for r in rows]
             img=re.search(r'property="og:image"[^>]*content="([^"]+)"',html,re.I)
-            results.append({
-                "id":f"ticketline-{item['slug']}","name":name,"date":ed or "",
-                "platform":PLATFORM,"category":detect_category(name,item["url"]),
-                "price_min":str(min(prices)) if prices else "","price_max":str(max(prices)) if prices else "",
-                "url":item["url"],"image_url":img.group(1) if img else "",
-                "tickets_json":build_tickets_json(rows),"tickets_detail":build_tickets_detail(rows),
-                "updated_at":datetime.utcnow().isoformat(),
-                "scraper_status":"ok" if prices else "ok_no_prices","price_source":src,
-            })
-        except Exception as e: log.warning(f"TL event: {e}")
+            raw.append({"id":f"ticketline-{item['slug']}","name":name,"date":ed or "","url":item["url"],
+                        "image_url":img.group(1) if img else "","rows":rows,"src":src,
+                        "category":detect_category(name,item["url"])})
+        except Exception as e: log.warning(f"TL static: {e}")
+
+    # T2 batch
+    missing=[ev for ev in raw if not ev["rows"]]
+    if missing:
+        log.info(f"[TL] T2 batch: {len(missing)}")
+        try:
+            from scraper.playwright_engine import batch_render
+            pw=batch_render([ev["url"] for ev in missing])
+            for ev in missing:
+                if pw.get(ev["url"]): ev["rows"]=pw[ev["url"]]; ev["src"]="playwright"
+        except Exception as e: log.warning(f"TL T2: {e}")
+
+    # T3 batch (capped)
+    still=[ev for ev in raw if not ev["rows"]][:8]
+    if still:
+        log.info(f"[TL] T3 cart: {len(still)}")
+        try:
+            from scraper.playwright_engine import batch_cart
+            ct=batch_cart([ev["url"] for ev in still])
+            for ev in still:
+                if ct.get(ev["url"]): ev["rows"]=ct[ev["url"]]; ev["src"]="cart"
+        except Exception as e: log.warning(f"TL T3: {e}")
+
+    results=[]
+    for ev in raw:
+        prices=[r["price"] for r in ev["rows"]]
+        results.append({
+            "id":ev["id"],"name":ev["name"],"date":ev["date"],
+            "platform":PLATFORM,"category":ev["category"],
+            "price_min":str(min(prices)) if prices else "","price_max":str(max(prices)) if prices else "",
+            "url":ev["url"],"image_url":ev["image_url"],
+            "tickets_json":build_tickets_json(ev["rows"]),"tickets_detail":build_tickets_detail(ev["rows"]),
+            "updated_at":datetime.utcnow().isoformat(),
+            "scraper_status":"ok" if prices else "ok_no_prices","price_source":ev["src"],
+        })
     return results

@@ -180,13 +180,14 @@ def load_data(cache_v=0):
             df=_dedup_display(df)
             return df.sort_values(["_dt","_row_idx"],na_position="last").reset_index(drop=True)
         except Exception as e: st.toast(f"gspread: {e}",icon="⚠️")
-    # Fallback: public CSV export — use per-second cache-buster so edits show immediately
+    # Fallback: public CSV export — use gviz/tq endpoint for real-time uncached updates
     try:
         import time as _ct
-        # Use seconds-level buster so every Streamlit re-run can get fresh data
         ts_buster=int(_ct.time())  # changes every second
-        url=f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/export?format=csv&gid={GID}&t={ts_buster}"
+        url=f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/gviz/tq?tqx=out:csv&gid={GID}&t={ts_buster}"
         df=pd.read_csv(url,dtype=str).fillna("")
+        if "name" in df.columns:
+            df=df[df["name"].str.strip() != ""]
         df["_row_idx"]=range(len(df))  # preserve sheet order
         for c in COLS:
             if c not in df.columns: df[c]=""
@@ -414,8 +415,18 @@ def plat_s(p):
     if "bol" in p: return "BOL"
     return p.split()[0].title() if p else p
 
-def price_rows(tj,td):
+def price_rows(tj,td,is_manual=False):
     rows=[]
+    if is_manual and td:
+        for line in td.splitlines():
+            line=line.strip().lstrip()
+            if not line or line.lower().startswith("bilhete"): continue
+            if ":" in line:
+                pts=line.split(":",1); sec=pts[0].strip(); rest=pts[1].strip()
+                m=re.search(r"(\d+(?:[,.]\d+)?)\s*€",rest)
+                if m: rows.append({"sector":sec,"price":float(m.group(1).replace(",",".")),"note":"","sold_out":"esgotado" in rest.lower()})
+        if rows: return rows
+
     if tj:
         try:
             for cat in json.loads(tj).get("categories",[]):
@@ -458,7 +469,7 @@ def render_card(row):
     du=days_until(row["date"]) if row["date"] else 999
     soon_txt=(f' · <span class="soon">em {du}d</span>' if du<=7 and du>=0 else '') if du<=30 else ''
     mt=('<div class="ev-meta"><span>🎫 '+plat_s(plat)+'</span></div>')
-    prows=price_rows(tj,td)
+    prows=price_rows(tj,td,is_manual)
     if prows:
         lines=""
         for r in prows[:9]:

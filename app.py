@@ -172,12 +172,13 @@ def load_data():
             gc=gspread.authorize(creds)
             ws=gc.open_by_key(SPREADSHEET_ID).worksheet("Eventos")
             df=pd.DataFrame(ws.get_all_records()).fillna("")
+            df["_row_idx"]=range(len(df))  # preserve sheet order as tiebreaker
             for c in COLS:
                 if c not in df.columns: df[c]=""
             df["_dt"]=pd.to_datetime(df["date"],errors="coerce")
             df["_rel"]=df.apply(lambda r:relevance(r["name"],r.get("url","")),axis=1)
             df=_dedup_display(df)
-            return df.sort_values("_dt",na_position="last").reset_index(drop=True)
+            return df.sort_values(["_dt","_row_idx"],na_position="last").reset_index(drop=True)
         except Exception as e: st.toast(f"gspread: {e}",icon="⚠️")
     # Fallback: public CSV export — use per-second cache-buster so edits show immediately
     try:
@@ -186,12 +187,13 @@ def load_data():
         ts_buster=int(_ct.time())  # changes every second
         url=f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/export?format=csv&gid={GID}&t={ts_buster}"
         df=pd.read_csv(url,dtype=str).fillna("")
+        df["_row_idx"]=range(len(df))  # preserve sheet order
         for c in COLS:
             if c not in df.columns: df[c]=""
         df["_dt"]=pd.to_datetime(df["date"],errors="coerce")
         df["_rel"]=df.apply(lambda r:relevance(r["name"],r.get("url","")),axis=1)
         df=_dedup_display(df)
-        return df.sort_values("_dt",na_position="last").reset_index(drop=True)
+        return df.sort_values(["_dt","_row_idx"],na_position="last").reset_index(drop=True)
     except Exception as e: st.error(f"Erro ao carregar dados: {e}"); return pd.DataFrame()
 
 
@@ -454,7 +456,7 @@ def render_card(row):
     rb='<div class="ev-ribbon '+rcls(cat)+'">'+cat+hb+'</div>'
     du=days_until(row["date"]) if row["date"] else 999
     soon_txt=(f' · <span class="soon">em {du}d</span>' if du<=7 and du>=0 else '') if du<=30 else ''
-    mt=('<div class="ev-meta"><span>📅 '+ds+'</span><span>🎫 '+plat_s(plat)+'</span>'+soon_txt+'</div>')
+    mt=('<div class="ev-meta"><span>🎫 '+plat_s(plat)+'</span></div>')
     prows=price_rows(tj,td)
     if prows:
         lines=""
@@ -513,10 +515,9 @@ def main():
         '<div class="tt-hero-inner">'
           '<div class="tt-logo-mark">🎪</div>'
           '<div class="tt-title-block">'
-            '<div class="tt-title">TT Tracker</div>'
+            '<div class="tt-title">Ticket Tracker</div>'
             '<div class="tt-sub">Concertos &amp; Festivais em Portugal — preços actualizados em tempo real</div>'
             '<div class="tt-tags">'
-              '<span class="tt-tag tt-tag-live">● AO VIVO</span>'
               '<span class="tt-tag tt-tag-pt">🇵🇹 Portugal</span>'
               '<span class="tt-tag tt-tag-hot">🔥 Verão 2026</span>'
             '</div>'

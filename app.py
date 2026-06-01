@@ -4,42 +4,138 @@ from datetime import datetime, date, timedelta
 import streamlit as st
 import pandas as pd
 
-st.set_page_config(page_title="TT Tracker", page_icon="🏟️", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="TT Tracker — Concertos & Festivais", page_icon="🎪", layout="wide", initial_sidebar_state="collapsed")
 
 CSS = (
     "<style>"
     "@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');"
-    ":root{--navy:#050A18;--card:#0D1526;--border:#1E2D4D;--accent:#1E6FFF;--green:#00C48C;--text:#E8EDF5;--muted:#6B7A99;--tag-bg:#131E35;}"
-    "html,body,[class*='css']{font-family:'Inter',sans-serif;background:var(--navy)!important;color:var(--text);}"
+    "@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@700;800;900&display=swap');"
+    ":root{"
+    "  --bg:#07040F;"
+    "  --card:#110D1E;"
+    "  --card2:#16112A;"
+    "  --border:#2A1F45;"
+    "  --accent:#FF5C35;"
+    "  --accent2:#FF9A3C;"
+    "  --purple:#8B5CF6;"
+    "  --green:#00D68F;"
+    "  --blue:#3B82F6;"
+    "  --text:#F0EBF8;"
+    "  --muted:#7C6FA0;"
+    "  --tag-bg:#0E0A1C;"
+    "}"
+    "html,body,[class*='css']{font-family:'Inter',sans-serif;background:var(--bg)!important;color:var(--text);}"
     "#MainMenu,footer,header{visibility:hidden;}"
-    ".block-container{padding-top:1.2rem!important;max-width:1400px;}"
-    ".tt-hdr{background:linear-gradient(135deg,#0A1628 0%,#0D1E42 50%,#0A1628 100%);border:1px solid var(--border);border-radius:16px;padding:24px 36px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;}"
-    ".tt-hdr h1{color:#fff;font-size:1.7rem;font-weight:800;margin:0;}.tt-hdr p{color:var(--muted);margin:4px 0 0;font-size:.85rem;}"
-    ".tt-badge{background:var(--accent);border-radius:20px;padding:5px 14px;color:#fff;font-size:.78rem;font-weight:600;}"
+    ".block-container{padding-top:0!important;max-width:1440px;}"
+    ".tt-hero{"
+    "  position:relative;overflow:hidden;"
+    "  background:linear-gradient(135deg,#1A0533 0%,#2D0B5A 30%,#4A1070 55%,#2D0B5A 80%,#1A0533 100%);"
+    "  border-radius:20px;margin-bottom:22px;padding:0;"
+    "  border:1px solid rgba(139,92,246,.3);"
+    "  box-shadow:0 20px 60px rgba(139,92,246,.2),0 0 0 1px rgba(255,92,53,.15);"
+    "}"
+    ".tt-hero-glow{"
+    "  position:absolute;top:-40%;left:-10%;width:50%;height:200%;"
+    "  background:radial-gradient(ellipse,rgba(255,92,53,.18) 0%,transparent 65%);"
+    "  pointer-events:none;"
+    "}"
+    ".tt-hero-glow2{"
+    "  position:absolute;top:-20%;right:-5%;width:40%;height:180%;"
+    "  background:radial-gradient(ellipse,rgba(139,92,246,.2) 0%,transparent 65%);"
+    "  pointer-events:none;"
+    "}"
+    ".tt-hero-inner{"
+    "  position:relative;z-index:1;padding:32px 44px;"
+    "  display:flex;align-items:center;justify-content:space-between;gap:20px;"
+    "}"
+    ".tt-logo-mark{"
+    "  width:60px;height:60px;border-radius:16px;flex-shrink:0;"
+    "  background:linear-gradient(135deg,#FF5C35,#FF9A3C);"
+    "  display:flex;align-items:center;justify-content:center;"
+    "  font-size:1.8rem;box-shadow:0 8px 24px rgba(255,92,53,.4);"
+    "  margin-right:20px;"
+    "}"
+    ".tt-title-block{flex:1;}"
+    ".tt-title{"
+    "  font-family:'Outfit',sans-serif;font-weight:900;"
+    "  font-size:2.1rem;line-height:1;"
+    "  background:linear-gradient(90deg,#FF9A3C 0%,#FF5C35 40%,#C084FC 80%,#818CF8 100%);"
+    "  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;"
+    "  margin:0 0 6px;letter-spacing:-1px;"
+    "}"
+    ".tt-sub{"
+    "  font-size:.9rem;color:rgba(240,235,248,.55);font-weight:400;margin:0;"
+    "  letter-spacing:.3px;"
+    "}"
+    ".tt-tags{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;}"
+    ".tt-tag{"
+    "  font-size:.7rem;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;"
+    "  padding:4px 12px;border-radius:20px;border:1px solid;"
+    "}"
+    ".tt-tag-hot{background:rgba(255,92,53,.15);color:#FF7A5C;border-color:rgba(255,92,53,.35);}"
+    ".tt-tag-live{background:rgba(0,214,143,.12);color:#00D68F;border-color:rgba(0,214,143,.3);"
+    "  animation:pulse-dot 2s infinite;}"
+    ".tt-tag-pt{background:rgba(139,92,246,.15);color:#A78BFA;border-color:rgba(139,92,246,.35);}"
+    "@keyframes pulse-dot{0%,100%{box-shadow:0 0 0 0 rgba(0,214,143,.3);}50%{box-shadow:0 0 0 6px rgba(0,214,143,0);}}"
+    ".tt-right-col{display:flex;flex-direction:column;align-items:flex-end;gap:10px;flex-shrink:0;}"
+    ".tt-stat-pill{"
+    "  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);"
+    "  border-radius:12px;padding:10px 18px;text-align:center;min-width:80px;"
+    "}"
+    ".tt-stat-n{font-family:'Outfit',sans-serif;font-size:1.5rem;font-weight:800;color:#FF9A3C;line-height:1;}"
+    ".tt-stat-l{font-size:.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-top:2px;}"
     ".stTextInput input{background:var(--card)!important;border:1px solid var(--border)!important;border-radius:10px!important;color:var(--text)!important;padding:10px 16px!important;}"
-    ".stTextInput input:focus{border-color:var(--accent)!important;}"
+    ".stTextInput input:focus{border-color:var(--accent)!important;box-shadow:0 0 0 3px rgba(255,92,53,.15)!important;}"
     ".stSelectbox>div>div{background:var(--card)!important;border:1px solid var(--border)!important;border-radius:10px!important;color:var(--text)!important;}"
-    ".sp{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;text-align:center;}"
-    ".sp .n{font-size:1.6rem;font-weight:800;color:var(--accent);line-height:1;}.sp .l{font-size:.7rem;color:var(--muted);margin-top:4px;text-transform:uppercase;letter-spacing:1px;}"
-    ".stTabs [data-baseweb='tab-list']{gap:6px;background:transparent;border-bottom:1px solid var(--border)!important;}"
-    ".stTabs [data-baseweb='tab']{background:transparent;border:none;border-radius:8px 8px 0 0;color:var(--muted);font-weight:600;padding:8px 18px;font-size:.88rem;}"
+    ".sp{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;text-align:center;"
+    "  transition:border-color .2s,box-shadow .2s;}"
+    ".sp:hover{border-color:rgba(139,92,246,.5);box-shadow:0 4px 20px rgba(139,92,246,.1);}"
+    ".sp .n{font-family:'Outfit',sans-serif;font-size:1.7rem;font-weight:800;color:var(--accent);line-height:1;}"
+    ".sp .l{font-size:.68rem;color:var(--muted);margin-top:4px;text-transform:uppercase;letter-spacing:1px;}"
+    ".stTabs [data-baseweb='tab-list']{gap:4px;background:transparent;border-bottom:1px solid var(--border)!important;}"
+    ".stTabs [data-baseweb='tab']{background:transparent;border:none;border-radius:8px 8px 0 0;color:var(--muted);font-weight:600;padding:10px 20px;font-size:.88rem;transition:color .15s;}"
+    ".stTabs [data-baseweb='tab']:hover{color:var(--text)!important;}"
     ".stTabs [aria-selected='true']{background:var(--card)!important;color:#fff!important;border-top:2px solid var(--accent)!important;}"
     ".stTabs [data-baseweb='tab-panel']{padding-top:18px;background:transparent;}"
-    ".ev-card{background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden;transition:transform .15s ease,border-color .15s ease,box-shadow .15s ease;display:flex;flex-direction:column;height:100%;cursor:pointer;}"
-    ".ev-card:hover{transform:translateY(-3px);border-color:var(--accent);box-shadow:0 8px 28px rgba(30,111,255,.18);}"
-    ".ev-img{width:100%;height:200px;object-fit:cover;display:block;}.ev-noimg{width:100%;height:200px;background:linear-gradient(135deg,#0D1E42,#142040);display:flex;align-items:center;justify-content:center;font-size:4rem;}"
-    ".ev-ribbon{color:#fff;font-size:.68rem;font-weight:700;letter-spacing:.8px;padding:4px 10px;text-transform:uppercase;}.r-concerto{background:var(--accent);}.r-festival{background:#FF6B2B;}.r-evento{background:#7C3AED;}"
-    ".hot-badge{background:#FF6B2B;color:#fff;font-size:.62rem;font-weight:700;padding:2px 8px;border-radius:20px;margin-left:6px;letter-spacing:.5px;}"
-    ".ev-body{padding:16px;flex:1;display:flex;flex-direction:column;}.ev-name{font-size:1.05rem;font-weight:700;color:#fff;margin:0 0 8px;line-height:1.3;}"
-    ".ev-meta{display:flex;gap:8px;flex-wrap:wrap;font-size:.78rem;color:var(--muted);margin-bottom:12px;}.ev-meta .soon{color:#34D399;font-weight:600;}"
-    ".ev-prices{background:var(--tag-bg);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:12px;flex:1;}"
-    ".ev-prices-hdr{font-size:.68rem;font-weight:700;letter-spacing:1px;color:var(--accent);text-transform:uppercase;margin-bottom:8px;}"
-    ".pr-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(30,45,77,.6);font-size:.83rem;}.pr-row:last-child{border-bottom:none;}"
+    ".ev-card{"
+    "  background:var(--card);border:1px solid var(--border);border-radius:16px;overflow:hidden;"
+    "  transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease;"
+    "  display:flex;flex-direction:column;height:100%;cursor:pointer;"
+    "}"
+    ".ev-card:hover{"
+    "  transform:translateY(-4px);border-color:rgba(255,92,53,.5);"
+    "  box-shadow:0 12px 40px rgba(255,92,53,.15),0 2px 8px rgba(0,0,0,.4);"
+    "}"
+    ".ev-img{width:100%;height:200px;object-fit:cover;display:block;}"
+    ".ev-noimg{width:100%;height:200px;display:flex;align-items:center;justify-content:center;font-size:3.5rem;"
+    "  background:linear-gradient(135deg,#1A0D35 0%,#2D1060 50%,#1A0D35 100%);}"
+    ".ev-ribbon{color:#fff;font-size:.68rem;font-weight:700;letter-spacing:.8px;padding:5px 12px;text-transform:uppercase;}"
+    ".r-concerto{background:linear-gradient(90deg,#3B82F6,#6366F1);}"
+    ".r-festival{background:linear-gradient(90deg,#FF5C35,#FF9A3C);}"
+    ".r-evento{background:linear-gradient(90deg,#8B5CF6,#C084FC);}"
+    ".hot-badge{background:rgba(255,154,60,.2);color:#FF9A3C;font-size:.62rem;font-weight:700;"
+    "  padding:2px 8px;border-radius:20px;margin-left:6px;letter-spacing:.5px;border:1px solid rgba(255,154,60,.4);}"
+    ".manual-badge{background:rgba(0,214,143,.1);color:#00D68F;font-size:.6rem;font-weight:700;"
+    "  padding:1px 7px;border-radius:10px;margin-left:5px;border:1px solid rgba(0,214,143,.3);}"
+    ".ev-body{padding:16px;flex:1;display:flex;flex-direction:column;}"
+    ".ev-name{font-size:1.05rem;font-weight:700;color:#fff;margin:0 0 8px;line-height:1.3;}"
+    ".ev-meta{display:flex;gap:8px;flex-wrap:wrap;font-size:.78rem;color:var(--muted);margin-bottom:12px;}"
+    ".ev-meta .soon{color:#00D68F;font-weight:600;}"
+    ".ev-prices{background:var(--tag-bg);border:1px solid rgba(42,31,69,.8);border-radius:10px;padding:10px 12px;margin-bottom:12px;flex:1;}"
+    ".ev-prices-hdr{font-size:.67rem;font-weight:700;letter-spacing:1px;color:var(--accent);text-transform:uppercase;margin-bottom:8px;}"
+    ".pr-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;"
+    "  border-bottom:1px solid rgba(42,31,69,.8);font-size:.82rem;}"
+    ".pr-row:last-child{border-bottom:none;}"
     ".pr-sec{color:var(--text);font-weight:500;}.pr-val{color:var(--green);font-weight:700;font-size:.9rem;white-space:nowrap;}"
-    ".pr-sold{color:#EF4444;font-size:.72rem;font-weight:600;margin-left:4px;}.pr-note{color:var(--muted);font-size:.72rem;font-style:italic;margin-left:4px;}"
-    ".no-price{color:var(--muted);font-size:.82rem;font-style:italic;padding:4px 0;}.ev-footer{display:flex;align-items:center;justify-content:flex-end;}"
-    ".src-link{color:var(--muted);font-size:.72rem;text-decoration:none!important;}.src-link:hover{color:var(--text)!important;}"
-    ".no-res{text-align:center;padding:60px 20px;color:var(--muted);}.ts{font-size:.73rem;color:var(--muted);text-align:right;margin-top:-8px;margin-bottom:14px;}"
+    ".pr-sold{color:#EF4444;font-size:.72rem;font-weight:600;margin-left:4px;}"
+    ".pr-note{color:var(--muted);font-size:.72rem;font-style:italic;margin-left:4px;}"
+    ".no-price{color:var(--muted);font-size:.82rem;font-style:italic;padding:4px 0;}"
+    ".ev-footer{display:flex;align-items:center;justify-content:space-between;margin-top:auto;}"
+    ".src-link{color:var(--muted);font-size:.72rem;text-decoration:none!important;transition:color .15s;}"
+    ".src-link:hover{color:var(--accent)!important;}"
+    ".no-res{text-align:center;padding:60px 20px;color:var(--muted);}"
+    ".ts{font-size:.72rem;color:var(--muted);text-align:right;margin-top:-6px;margin-bottom:14px;}"
+    ".stButton>button{transition:all .2s!important;}"
     "</style>"
 )
 st.markdown(CSS, unsafe_allow_html=True)
@@ -59,8 +155,13 @@ def _s(k,d=""):
 
 SPREADSHEET_ID=_s("SPREADSHEET_ID"); GID=_s("SHEET_GID","0"); SA_JSON=_s("GOOGLE_SERVICE_ACCOUNT_JSON")
 
-@st.cache_data(ttl=300,show_spinner=False)
+@st.cache_data(ttl=30,show_spinner=False)
 def load_data():
+    """Load events from Google Sheets.
+    - Uses gspread (service account) if SA_JSON is available — always gets fresh data.
+    - Falls back to CSV export with a per-second cache-buster so manual edits appear within seconds.
+    - TTL is 30 s so manual edits are visible quickly without hammering the API.
+    """
     if not SPREADSHEET_ID or SPREADSHEET_ID=="id-da-sheet": return pd.DataFrame()
     if SA_JSON and len(SA_JSON)>50:
         try:
@@ -68,7 +169,8 @@ def load_data():
             from google.oauth2.service_account import Credentials
             SCOPES=["https://www.googleapis.com/auth/spreadsheets","https://www.googleapis.com/auth/drive.readonly"]
             creds=Credentials.from_service_account_info(json.loads(SA_JSON),scopes=SCOPES)
-            gc=gspread.authorize(creds); ws=gc.open_by_key(SPREADSHEET_ID).worksheet("Eventos")
+            gc=gspread.authorize(creds)
+            ws=gc.open_by_key(SPREADSHEET_ID).worksheet("Eventos")
             df=pd.DataFrame(ws.get_all_records()).fillna("")
             for c in COLS:
                 if c not in df.columns: df[c]=""
@@ -77,9 +179,12 @@ def load_data():
             df=_dedup_display(df)
             return df.sort_values("_dt",na_position="last").reset_index(drop=True)
         except Exception as e: st.toast(f"gspread: {e}",icon="⚠️")
+    # Fallback: public CSV export — use per-second cache-buster so edits show immediately
     try:
         import time as _ct
-        url=f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/export?format=csv&gid={GID}&nocache={int(_ct.time())}"
+        # Use seconds-level buster so every Streamlit re-run can get fresh data
+        ts_buster=int(_ct.time())  # changes every second
+        url=f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/export?format=csv&gid={GID}&t={ts_buster}"
         df=pd.read_csv(url,dtype=str).fillna("")
         for c in COLS:
             if c not in df.columns: df[c]=""
@@ -87,17 +192,29 @@ def load_data():
         df["_rel"]=df.apply(lambda r:relevance(r["name"],r.get("url","")),axis=1)
         df=_dedup_display(df)
         return df.sort_values("_dt",na_position="last").reset_index(drop=True)
-    except Exception as e: st.error(f"Erro: {e}"); return pd.DataFrame()
+    except Exception as e: st.error(f"Erro ao carregar dados: {e}"); return pd.DataFrame()
 
 
 def _dedup_display(df):
+    """Deduplicate events by normalised name.
+    Priority order (highest kept):
+      1. manual / locked rows (human-edited — always win)
+      2. Rows with more price data
+    """
     import re as _r
     if df.empty: return df
     def norm(n): return ' '.join(sorted(_r.sub(r'[^a-z0-9\s]',' ',n.lower()).split()))
     df['_norm']=df['name'].apply(norm)
-    df['_score']=(df['price_min'].str.len()>0).astype(int)*10+df['tickets_detail'].str.len().fillna(0).clip(0,100)
+    # Manual rows get a huge bonus so they always survive dedup
+    _MANUAL_STATUSES={'manual','locked','manual-locked'}
+    df['_is_manual']=df.get('scraper_status','').str.strip().str.lower().isin(_MANUAL_STATUSES).astype(int)
+    df['_score']=(
+        df['_is_manual']*1000                                      # manual rows always win
+        + (df['price_min'].str.len()>0).astype(int)*10             # has price_min
+        + df['tickets_detail'].str.len().fillna(0).clip(0,100)     # richness of detail
+    )
     df=df.sort_values('_score',ascending=False).drop_duplicates(subset=['_norm'],keep='first')
-    return df.drop(columns=['_norm','_score'],errors='ignore')
+    return df.drop(columns=['_norm','_score','_is_manual'],errors='ignore')
 
 def _search_event_web(query):
     import requests as _req
@@ -300,11 +417,15 @@ def price_rows(tj,td):
         try:
             for cat in json.loads(tj).get("categories",[]):
                 for row in cat.get("rows",[]):
-                    sec=row.get("sector","Geral") or "Geral"; note=row.get("note","") or ""; sold=row.get("sold_out",False)
+                    sec=row.get("sector","Geral") or "Geral"
+                    note=row.get("note","") or ""
+                    sold=row.get("sold_out",False)
                     for p in row.get("prices",[{"price":row.get("price",0)}]):
-                        pv=p.get("price",row.get("price",0)); pn=note or p.get("note","") or ""
+                        pv=p.get("price",row.get("price",0))
+                        pn=note or p.get("note","") or ""
                         if pn in ("Preco","Preco",""): pn=""
-                        if pv and float(pv)>0: rows.append({"sector":sec,"price":float(pv),"note":pn,"sold_out":bool(sold or p.get("sold_out",False))})
+                        if pv and float(pv)>0:
+                            rows.append({"sector":sec,"price":float(pv),"note":pn,"sold_out":bool(sold or p.get("sold_out",False))})
             if rows: return rows
         except: pass
     if td:
@@ -324,28 +445,41 @@ def render_card(row):
     url=row.get("url",""); img=row.get("image_url","")
     tj=row.get("tickets_json",""); td=row.get("tickets_detail","")
     rel=int(row.get("_rel",1))
+    status=(row.get("scraper_status","") or "").strip().lower()
+    _MANUAL={"manual","locked","manual-locked"}
+    is_manual=status in _MANUAL or status.startswith("manual")
     ih=('<img class="ev-img" src="'+img+'">') if img else '<div class="ev-noimg">🎵</div>'
     hb=('<span class="hot-badge">🔥 DESTAQUE</span>') if rel==3 else ""
+    mb='<span class="manual-badge">✏️ manual</span>' if is_manual else ""
     rb='<div class="ev-ribbon '+rcls(cat)+'">'+cat+hb+'</div>'
-    sc="soon" if row["date"] and days_until(row["date"])<=30 else ""
-    mt=('<div class="ev-meta"><span>🎫 '+plat_s(plat)+'</span></div>')
+    du=days_until(row["date"]) if row["date"] else 999
+    soon_txt=(f' · <span class="soon">em {du}d</span>' if du<=7 and du>=0 else '') if du<=30 else ''
+    mt=('<div class="ev-meta"><span>📅 '+ds+'</span><span>🎫 '+plat_s(plat)+'</span>'+soon_txt+'</div>')
     prows=price_rows(tj,td)
     if prows:
         lines=""
         for r in prows[:9]:
             nt=('<span class="pr-note">('+r["note"]+')</span>') if r["note"] else ""
             sl='<span class="pr-sold">ESGOTADO</span>' if r["sold_out"] else ""
-            lines+=('<div class="pr-row"><span class="pr-sec">'+r["sector"]+nt+'</span>'+'<span class="pr-val">'+str(int(r["price"]))+'€'+sl+'</span></div>')
+            pv=r["price"]; pstr=(str(int(pv)) if pv==int(pv) else f"{pv:.1f}")
+            lines+=('<div class="pr-row"><span class="pr-sec">'+r["sector"]+nt+'</span>'+'<span class="pr-val">'+pstr+'€'+sl+'</span></div>')
         if len(prows)>9: lines+='<div style="color:var(--muted);font-size:.72rem;padding:4px 0 0">+'+str(len(prows)-9)+' categorias</div>'
         pb='<div class="ev-prices"><div class="ev-prices-hdr">🎫 Bilhetes</div>'+lines+'</div>'
-    else: pb='<div class="ev-prices"><span class="no-price">Preços em breve</span></div>'
-    src_label=row.get("price_source","")
-    is_range=src_label=="range"
-    range_note=' <span style="font-size:.65rem;color:#F59E0B;font-weight:500">⚠️ gama aprox.</span>' if is_range else ""
+    else:
+        pb='<div class="ev-prices"><span class="no-price">Preços em breve</span></div>'
     lk=('<a href="'+url+'" target="_blank" class="src-link">ver fonte ↗</a>') if url else ""
     card_a=f'<a href="{url}" target="_blank" rel="noopener" style="text-decoration:none;color:inherit;display:block;">' if url else ''
     card_z='</a>' if url else ''
-    st.markdown(card_a+'<div class="ev-card">'+ih+rb+'<div class="ev-body"><div class="ev-name">'+name+'</div>'+mt+pb+'<div class="ev-footer">'+lk+'</div></div></div>'+card_z,unsafe_allow_html=True)
+    name_html=name+mb
+    st.markdown(
+        card_a+'<div class="ev-card">'+ih+rb
+        +'<div class="ev-body">'
+        +'<div class="ev-name">'+name_html+'</div>'
+        +mt+pb
+        +'<div class="ev-footer">'+lk+'</div>'
+        +'</div></div>'+card_z,
+        unsafe_allow_html=True
+    )
 
 def render_grid(df):
     if df.empty:
@@ -358,68 +492,100 @@ def render_grid(df):
         st.markdown("<br>",unsafe_allow_html=True)
 
 def main():
-    st.markdown('<div class="tt-hdr"><div style="display:flex;align-items:center"><span style="font-size:1.5rem;margin-right:12px">🏟️</span><div><h1>TT Tracker</h1><p>Concertos &amp; Festivais — preços em tempo real</p></div></div><span class="tt-badge">🇵🇹 Portugal</span></div>',unsafe_allow_html=True)
+    # ── HERO HEADER ──────────────────────────────────────────────────────
+    with st.spinner("A carregar eventos..."):
+        df_all=load_data()
+    tot_all=len(df_all)
+    fst_all=len(df_all[df_all["category"].str.contains("Festival",case=False,na=False)]) if not df_all.empty else 0
+    import datetime as _dtnow
+    _fetch_t=_dtnow.datetime.now().strftime("%H:%M")
+    last_scrape=""
+    if not df_all.empty:
+        last=df_all["updated_at"].replace("","NaT")
+        last=last[last!="NaT"]
+        if not last.empty:
+            try: last_scrape=pd.to_datetime(last.iloc[0]).strftime("%d/%m %H:%M")
+            except: pass
+    hero_html=(
+        '<div class="tt-hero">'
+        '<div class="tt-hero-glow"></div>'
+        '<div class="tt-hero-glow2"></div>'
+        '<div class="tt-hero-inner">'
+          '<div class="tt-logo-mark">🎪</div>'
+          '<div class="tt-title-block">'
+            '<div class="tt-title">TT Tracker</div>'
+            '<div class="tt-sub">Concertos &amp; Festivais em Portugal — preços actualizados em tempo real</div>'
+            '<div class="tt-tags">'
+              '<span class="tt-tag tt-tag-live">● AO VIVO</span>'
+              '<span class="tt-tag tt-tag-pt">🇵🇹 Portugal</span>'
+              '<span class="tt-tag tt-tag-hot">🔥 Verão 2026</span>'
+            '</div>'
+          '</div>'
+          '<div class="tt-right-col">'
+            f'<div class="tt-stat-pill"><div class="tt-stat-n">{tot_all}</div><div class="tt-stat-l">Eventos</div></div>'
+            f'<div class="tt-stat-pill"><div class="tt-stat-n">{fst_all}</div><div class="tt-stat-l">Festivais</div></div>'
+          '</div>'
+        '</div>'
+        '</div>'
+    )
+    st.markdown(hero_html, unsafe_allow_html=True)
+
     nav=st.tabs(["🎵 Eventos","  ✏️ Adicionar"])
     with nav[0]:
-     with st.spinner("A carregar eventos..."): df=load_data()
-    if df.empty:
-        st.warning("⚙️ Configura os Streamlit Secrets.")
-        st.code('SPREADSHEET_ID = "o-teu-id"\nSHEET_GID = "0"',language="toml"); st.stop()
-    import datetime as _dtnow
-    _fetch_t=_dtnow.datetime.now().strftime("%H:%M:%S")
-    last=df["updated_at"].replace("","NaT"); last=last[last!="NaT"]
-    _scrape=""
-    if not last.empty:
-        try: _scrape=" · scrape "+pd.to_datetime(last.iloc[0]).strftime("%d/%m %H:%M")
-        except: pass
-    st.markdown(f'<div class="ts">🔄 Lido: {_fetch_t}{_scrape} · {len(df)} eventos</div>',unsafe_allow_html=True)
-    c1,c2,c3,c4,c5,c6=st.columns([2.5,1.5,1.5,1.3,1.3,0.8])
-    with c1: srch=st.text_input("","",placeholder="🔍  Pesquisar artista ou festival...",label_visibility="collapsed")
-    with c2:
-        pls=["Todas as plataformas"]+sorted(df["platform"].dropna().unique().tolist())
-        pf=st.selectbox("",pls,label_visibility="collapsed")
-    with c3:
-        pf2=st.selectbox("",["Qualquer preço","Até 30€","Até 60€","Até 100€","Até 150€","Mais de 150€"],label_visibility="collapsed")
-    with c4:
-        rel_f=st.selectbox("",["Todos os eventos","🔥 Destaque","🎪 Festivais verão","📅 Próximos 30 dias"],label_visibility="collapsed")
-    with c5:
-        sort_by=st.selectbox("",["Por data 📅","Por popularidade ⭐"],label_visibility="collapsed")
-    with c6:
-        if st.button("🔄",use_container_width=True,help="Actualizar dados do Google Sheets"): st.cache_data.clear(); st.rerun()
-    f=df.copy()
-    if srch.strip(): f=f[f["name"].str.contains(srch.strip(),case=False,na=False)]
-    if pf!="Todas as plataformas": f=f[f["platform"]==pf]
-    if pf2!="Qualquer preço":
-        def ok(r):
-            mn2,mx2=pp(r["price_min"]),pp(r["price_max"])
-            if mn2==0 and mx2==0: return True
-            p2=mn2 if mn2>0 else mx2
-            if   pf2=="Até 30€": return p2<=30
-            elif pf2=="Até 60€": return p2<=60
-            elif pf2=="Até 100€": return p2<=100
-            elif pf2=="Até 150€": return p2<=150
-            elif pf2=="Mais de 150€": return mx2>150
-            return True
-        f=f[f.apply(ok,axis=1)]
-    if "Destaque" in rel_f: f=f[f["_rel"]==3]
-    elif "Festivais" in rel_f: f=f[f["category"].str.contains("Festival",case=False,na=False)&(f["_rel"]>=2)]
-    elif "30 dias" in rel_f:
-        cutoff=(date.today()+timedelta(days=30)).isoformat()
-        f=f[f["date"]<=cutoff]
-    if "popularidade" in sort_by: f=f.sort_values(["_rel","_dt"],ascending=[False,True]).reset_index(drop=True)
-    else: f=f.sort_values("_dt",na_position="last").reset_index(drop=True)
-    tot=len(f); con=len(f[f["category"].str.contains("Concerto",case=False,na=False)])
-    fst=len(f[f["category"].str.contains("Festival",case=False,na=False)]); oth=tot-con-fst
-    wpr=len(f[f["price_min"].str.len()>0]); hot=len(f[f["_rel"]==3])
-    s1,s2,s3,s4,s5,s6=st.columns(6)
-    for col2,n,l in[(s1,tot,"Total"),(s2,con,"Concertos"),(s3,fst,"Festivais"),(s4,oth,"Outros"),(s5,wpr,"Com preços"),(s6,hot,"Destaque 🔥")]:
-        col2.markdown('<div class="sp"><div class="n">'+str(n)+'</div><div class="l">'+l+'</div></div>',unsafe_allow_html=True)
-    st.markdown("<br>",unsafe_allow_html=True)
-    t1,t2,t3,t4=st.tabs(["🎵 Todos ("+str(tot)+")","  🎤 Concertos ("+str(con)+")","  🎪 Festivais ("+str(fst)+")","  🎭 Outros ("+str(oth)+")"])
-    with t1: render_grid(f)
-    with t2: render_grid(f[f["category"].str.contains("Concerto",case=False,na=False)])
-    with t3: render_grid(f[f["category"].str.contains("Festival",case=False,na=False)])
-    with t4: render_grid(f[~f["category"].str.contains("Concerto|Festival",case=False,na=False)])
+        df=df_all
+        if df.empty:
+            st.warning("⚙️ Configura os Streamlit Secrets.")
+            st.code('SPREADSHEET_ID = "o-teu-id"\nSHEET_GID = "0"',language="toml"); st.stop()
+        ts_info=f"🔄 Atualizado: {_fetch_t}" + (f" · scrape {last_scrape}" if last_scrape else "") + f" · {len(df)} eventos"
+        st.markdown(f'<div class="ts">{ts_info}</div>',unsafe_allow_html=True)
+        c1,c2,c3,c4,c5,c6=st.columns([2.5,1.5,1.5,1.3,1.3,0.8])
+        with c1: srch=st.text_input("","",placeholder="🔍  Pesquisar artista ou festival...",label_visibility="collapsed")
+        with c2:
+            pls=["Todas as plataformas"]+sorted(df["platform"].dropna().unique().tolist())
+            pf=st.selectbox("",pls,label_visibility="collapsed")
+        with c3:
+            pf2=st.selectbox("",["Qualquer preço","Até 30€","Até 60€","Até 100€","Até 150€","Mais de 150€"],label_visibility="collapsed")
+        with c4:
+            rel_f=st.selectbox("",["Todos os eventos","🔥 Destaque","🎪 Festivais verão","📅 Próximos 30 dias"],label_visibility="collapsed")
+        with c5:
+            sort_by=st.selectbox("",["Por data 📅","Por popularidade ⭐"],label_visibility="collapsed")
+        with c6:
+            if st.button("🔄",use_container_width=True,help="Forçar actualização do Sheet"):
+                load_data.clear(); st.rerun()
+        f=df.copy()
+        if srch.strip(): f=f[f["name"].str.contains(srch.strip(),case=False,na=False)]
+        if pf!="Todas as plataformas": f=f[f["platform"]==pf]
+        if pf2!="Qualquer preço":
+            def ok(r):
+                mn2,mx2=pp(r["price_min"]),pp(r["price_max"])
+                if mn2==0 and mx2==0: return True
+                p2=mn2 if mn2>0 else mx2
+                if   pf2=="Até 30€": return p2<=30
+                elif pf2=="Até 60€": return p2<=60
+                elif pf2=="Até 100€": return p2<=100
+                elif pf2=="Até 150€": return p2<=150
+                elif pf2=="Mais de 150€": return mx2>150
+                return True
+            f=f[f.apply(ok,axis=1)]
+        if "Destaque" in rel_f: f=f[f["_rel"]==3]
+        elif "Festivais" in rel_f: f=f[f["category"].str.contains("Festival",case=False,na=False)&(f["_rel"]>=2)]
+        elif "30 dias" in rel_f:
+            cutoff=(date.today()+timedelta(days=30)).isoformat()
+            f=f[f["date"]<=cutoff]
+        if "popularidade" in sort_by: f=f.sort_values(["_rel","_dt"],ascending=[False,True]).reset_index(drop=True)
+        else: f=f.sort_values("_dt",na_position="last").reset_index(drop=True)
+        tot=len(f); con=len(f[f["category"].str.contains("Concerto",case=False,na=False)])
+        fst=len(f[f["category"].str.contains("Festival",case=False,na=False)]); oth=tot-con-fst
+        wpr=len(f[f["price_min"].str.len()>0]); hot=len(f[f["_rel"]==3])
+        s1,s2,s3,s4,s5,s6=st.columns(6)
+        for col2,n,l in[(s1,tot,"Total"),(s2,con,"Concertos"),(s3,fst,"Festivais"),(s4,oth,"Outros"),(s5,wpr,"Com preços"),(s6,hot,"Destaque 🔥")]:
+            col2.markdown('<div class="sp"><div class="n">'+str(n)+'</div><div class="l">'+l+'</div></div>',unsafe_allow_html=True)
+        st.markdown("<br>",unsafe_allow_html=True)
+        t1,t2,t3,t4=st.tabs(["🎵 Todos ("+str(tot)+")","  🎤 Concertos ("+str(con)+")","  🎪 Festivais ("+str(fst)+")","  🎭 Outros ("+str(oth)+")"])
+        with t1: render_grid(f)
+        with t2: render_grid(f[f["category"].str.contains("Concerto",case=False,na=False)])
+        with t3: render_grid(f[f["category"].str.contains("Festival",case=False,na=False)])
+        with t4: render_grid(f[~f["category"].str.contains("Concerto|Festival",case=False,na=False)])
 
     with nav[1]:
         _render_manual_tab()

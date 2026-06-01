@@ -156,3 +156,35 @@ def search_prices(event_name, event_date=""):
         return [], ""
 
     return _extract_from_snippets(snippets, event_name)
+
+def search_image(event_name: str, event_date: str = '') -> str:
+    year = event_date[:4] if event_date else ''
+    query = re.sub(r'[|()\[\]{}]', ' ', event_name).strip()
+    words = query.split()
+    if len(words) > 5: query = ' '.join(words[:5])
+    if year and year not in query: query += f' {year}'
+    key = _active_serper_key()
+    if key:
+        try:
+            resp = requests.post('https://google.serper.dev/images',
+                headers={'X-API-KEY': key, 'Content-Type': 'application/json'},
+                json={'q': query, 'gl': 'pt', 'num': 5}, timeout=10)
+            if resp.status_code == 200:
+                for img in resp.json().get('images', []):
+                    url = img.get('imageUrl', '')
+                    if url and any(e in url.lower() for e in ['.jpg','.jpeg','.png','.webp']):
+                        return url
+                imgs = resp.json().get('images', [])
+                if imgs: return imgs[0].get('imageUrl', '')
+        except Exception as e: log.warning(f'[ImageSearch] {e}')
+    # Wikipedia fallback
+    try:
+        resp = requests.get('https://en.wikipedia.org/w/api.php',
+            params={'action':'query','titles':event_name,'prop':'pageimages','format':'json','pithumbsize':600,'piprop':'thumbnail'},
+            timeout=8)
+        if resp.status_code == 200:
+            for pg in resp.json().get('query',{}).get('pages',{}).values():
+                url = pg.get('thumbnail',{}).get('source','')
+                if url: return url
+    except Exception as e: log.warning(f'[ImageSearch/Wiki] {e}')
+    return ''

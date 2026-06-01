@@ -59,7 +59,7 @@ def _s(k,d=""):
 
 SPREADSHEET_ID=_s("SPREADSHEET_ID"); GID=_s("SHEET_GID","0"); SA_JSON=_s("GOOGLE_SERVICE_ACCOUNT_JSON")
 
-@st.cache_data(ttl=60,show_spinner=False)
+@st.cache_data(ttl=300,show_spinner=False)
 def load_data():
     if not SPREADSHEET_ID or SPREADSHEET_ID=="id-da-sheet": return pd.DataFrame()
     if SA_JSON and len(SA_JSON)>50:
@@ -79,7 +79,7 @@ def load_data():
         except Exception as e: st.toast(f"gspread: {e}",icon="⚠️")
     try:
         import time as _ct
-        url=f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/export?format=csv&gid={GID}&nocache={int(_ct.time()//60)}"
+        url=f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/export?format=csv&gid={GID}&nocache={int(_ct.time())}"
         df=pd.read_csv(url,dtype=str).fillna("")
         for c in COLS:
             if c not in df.columns: df[c]=""
@@ -385,7 +385,7 @@ def main():
     with c5:
         sort_by=st.selectbox("",["Por data 📅","Por popularidade ⭐"],label_visibility="collapsed")
     with c6:
-        if st.button("🔄",use_container_width=True,help="Actualizar"): load_data.clear(); st.rerun()
+        if st.button("🔄",use_container_width=True,help="Actualizar dados do Google Sheets"): st.cache_data.clear(); st.rerun()
     f=df.copy()
     if srch.strip(): f=f[f["name"].str.contains(srch.strip(),case=False,na=False)]
     if pf!="Todas as plataformas": f=f[f["platform"]==pf]

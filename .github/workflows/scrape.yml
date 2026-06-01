@@ -2,13 +2,14 @@ name: TT Tracker Scraper
 
 on:
   schedule:
-    - cron: "0 8 * * 1"
+    - cron: "0 8 * * 1"   # Toda segunda 08:00 UTC
   workflow_dispatch:
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45    # Extended: web search adds time
+
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -23,4 +24,5 @@ jobs:
           SPREADSHEET_ID:              ${{ secrets.SPREADSHEET_ID }}
           SHEET_NAME:                  Eventos
           SERPER_API_KEY:              ${{ secrets.SERPER_API_KEY }}
+          SERPER_API_KEY_2:            ${{ secrets.SERPER_API_KEY_2 }}
         run: python -m scraper.run

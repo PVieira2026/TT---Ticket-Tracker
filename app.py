@@ -146,17 +146,27 @@ def _parse_snippets(snippets):
     return {'date':date_found,'price_lines':price_lines,'url':url}
 
 def _render_manual_tab():
-    st.markdown('<div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px"><h3 style="color:#fff;margin:0 0 8px">✏️ Adicionar Evento</h3><p style="color:var(--muted);font-size:.85rem;margin:0">Pesquisa, confirma e guarda no Sheet.</p></div>',unsafe_allow_html=True)
+    st.markdown('<div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px"><h3 style="color:#fff;margin:0 0 8px">✏️ Adicionar Evento</h3><p style="color:var(--muted);font-size:.85rem;margin:0">Pesquisa → confirma dados e fontes → guarda no Sheet.</p></div>',unsafe_allow_html=True)
     c1,c2=st.columns([4,1])
-    with c1: q=st.text_input('','',placeholder='🔍  Ex: NOS Alive 2026, Placebo Lisboa...',label_visibility='collapsed',key='mq')
+    with c1: q=st.text_input('','',placeholder='🔍  Ex: NOS Alive 2026, Placebo Lisboa, Sol da Caparica...',label_visibility='collapsed',key='mq')
     with c2: go=st.button('🔍 Pesquisar',use_container_width=True,key='ms')
     if go and q.strip():
         with st.spinner('A pesquisar...'):
             snips=_search_event_web(q.strip()); parsed=_parse_snippets(snips)
+            parsed['snips']=snips
         st.session_state['mr']=parsed; st.session_state['mn']=q.strip()
     if 'mr' not in st.session_state: return
-    r=st.session_state['mr']
-    st.markdown('<br>',unsafe_allow_html=True)
+    r=st.session_state['mr']; snips=r.get('snips',[])
+    # ── FONTES ────────────────────────────────────────────────────────────
+    if snips:
+        with st.expander('🔗 Fontes encontradas — clica para confirmar datas, preços e imagens', expanded=True):
+            for s in snips[:5]:
+                lnk=s.get('link',''); title=s.get('title',''); snippet=s.get('snippet','')
+                if not lnk: continue
+                icon='🎫' if any(p in lnk for p in ['blueticket','ticketline','bilheteira.fnac','bol.pt','livenation']) else '🔗'
+                st.markdown(f"{icon} **[{title or lnk[:60]}]({lnk})**  \n`{snippet[:140]}`" if snippet else f"{icon} **[{title or lnk}]({lnk})**")
+                st.divider()
+    # ── FORM ──────────────────────────────────────────────────────────────
     st.markdown('#### 📋 Confirma antes de guardar')
     col1,col2=st.columns(2)
     with col1:
@@ -165,18 +175,57 @@ def _render_manual_tab():
         plat=st.selectbox('Plataforma',['FNAC Bilheteira','Ticketline','Everything Is New','BOL','Blueticket','Outro'],key='mm_p')
         cat=st.selectbox('Categoria',['Festival','Concerto','Evento'],key='mm_c')
     with col2:
-        ev_url=st.text_input('URL',value=r.get('url',''),key='mm_u')
+        ev_url=st.text_input('URL do evento',value=r.get('url',''),key='mm_u')
         pmin=st.text_input('Preço mínimo (€)','',placeholder='25',key='mm_pn')
         pmax=st.text_input('Preço máximo (€)','',placeholder='85',key='mm_px')
         detail=st.text_area('Bilhetes (linha por linha)','',height=90,placeholder='Bilhete Diário: 25€',key='mm_det')
+    # ── IMAGEM ────────────────────────────────────────────────────────────
+    st.markdown('**🖼️ Imagem**')
+    ic1,ic2=st.columns([3,1])
+    with ic1: ev_img=st.text_input('URL da imagem',value=st.session_state.get('mm_img_v',''),placeholder='https://... (ou clica Auto-imagem)',key='mm_img')
+    with ic2:
+        if st.button('🔍 Auto-imagem',use_container_width=True,key='img_s'):
+            with st.spinner('...'):
+                sk=''
+                try: sk=os.environ.get('SERPER_API_KEY') or st.secrets.get('SERPER_API_KEY','')
+                except: pass
+                img_url=''
+                if sk:
+                    try:
+                        import requests as _ir
+                        rr=_ir.post('https://google.serper.dev/images',
+                            headers={'X-API-KEY':sk,'Content-Type':'application/json'},
+                            json={'q':(nm or st.session_state.get('mn',''))+' festival poster','gl':'pt','num':5},timeout=10)
+                        if rr.status_code==200:
+                            for im in rr.json().get('images',[]):
+                                u=im.get('imageUrl','') or im.get('thumbnailUrl','')
+                                if u: img_url=u; break
+                    except: pass
+                if not img_url:
+                    try:
+                        import requests as _wr
+                        ww=_wr.get('https://en.wikipedia.org/w/api.php',
+                            params={'action':'query','titles':nm,'prop':'pageimages','format':'json','pithumbsize':600,'piprop':'thumbnail'},timeout=8)
+                        for pg in ww.json().get('query',{}).get('pages',{}).values():
+                            img_url=pg.get('thumbnail',{}).get('source',''); break
+                    except: pass
+                st.session_state['mm_img_v']=img_url
+                if img_url: st.success('Imagem encontrada ✓')
+                else: st.warning('Sem imagem — cola o URL manualmente.')
+                st.rerun()
+    preview=ev_img or st.session_state.get('mm_img_v','')
+    if preview:
+        try: st.image(preview,width=220,caption='Preview')
+        except: st.markdown(f'`{preview[:80]}`')
+    # Price lines reference
     if r.get('price_lines'):
-        st.markdown('**Preços encontrados** (copia o que precisas):')
-        for ln in r['price_lines'][:6]: st.code(ln,language=None)
+        with st.expander('💰 Preços encontrados (referência)'):
+            for ln in r['price_lines'][:8]: st.code(ln,language=None)
     st.markdown('<br>',unsafe_allow_html=True)
     cola,colb=st.columns([3,1])
     with colb:
         if st.button('❌ Limpar',use_container_width=True,key='mm_clear'):
-            for k in ['mr','mn']:
+            for k in ['mr','mn','mm_img_v']:
                 if k in st.session_state: del st.session_state[k]
             st.rerun()
     with cola:
@@ -202,15 +251,17 @@ def _render_manual_tab():
                                  {'sector':'Preço máximo','price':hi,'note':'manual','sold_out':False}]
                     prices_d=[r2['price'] for r2 in rows_d]
                     tj=json.dumps({'summary':{'min':min(prices_d),'max':max(prices_d),'currency':'EUR'},'categories':[{'name':'Bilhetes','rows':rows_d}]},ensure_ascii=False) if prices_d else ''
-                    row_data=[ev_id,nm,dt,plat,cat,str(min(prices_d)) if prices_d else '',str(max(prices_d)) if prices_d else '',ev_url,'',tj,detail,datetime.utcnow().isoformat(),'manual']
+                    final_img=ev_img or st.session_state.get('mm_img_v','')
+                    row_data=[ev_id,nm,dt,plat,cat,
+                              str(min(prices_d)) if prices_d else '',str(max(prices_d)) if prices_d else '',
+                              ev_url,final_img,tj,detail,datetime.utcnow().isoformat(),'manual']
                     existing=ws.get_all_records(); id_map={r2.get('id'):i+2 for i,r2 in enumerate(existing)}
                     if ev_id in id_map: ws.update(f'A{id_map[ev_id]}',[row_data]); st.success(f'✅ "{nm}" actualizado!')
                     else: ws.append_row(row_data,value_input_option='USER_ENTERED'); st.success(f'✅ "{nm}" adicionado!')
                     st.cache_data.clear()
-                    for k in ['mr','mn']:
+                    for k in ['mr','mn','mm_img_v']:
                         if k in st.session_state: del st.session_state[k]
                 except Exception as e: st.error(f'Erro: {e}')
-
 def pp(v):
     try: return float(str(v).replace(",",".").strip())
     except: return 0.0

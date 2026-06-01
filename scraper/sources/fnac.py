@@ -37,7 +37,8 @@ def scrape(sheet_state=None):
             if len(html)<3000: continue
             name=_name(html)
             if not name or len(name)<3: continue
-            tm=re.search(r'<time[^>]+datetime="([^"]+)"',html,re.I); ed=parse_date(tm.group(1)) if tm else None
+            html_ns=re.sub(r'<script[\s\S]*?</script>','',html,flags=re.I)
+            tm=re.search(r'<time[^>]+datetime="([^"]+)"',html_ns,re.I); ed=parse_date(tm.group(1)) if tm else None
             if not ed:
                 m2=re.search(r"(\d{1,2})\s+(?:de\s+)?([a-z\u00e1\u00e9\u00ed\u00f3\u00fa\u00e7]+)(?:\s+de)?\s+(\d{4})",html,re.I)
                 if m2: ed=parse_date(m2.group(0))

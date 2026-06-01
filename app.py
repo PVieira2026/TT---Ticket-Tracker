@@ -25,7 +25,7 @@ CSS = (
     ".stTabs [data-baseweb='tab']{background:transparent;border:none;border-radius:8px 8px 0 0;color:var(--muted);font-weight:600;padding:8px 18px;font-size:.88rem;}"
     ".stTabs [aria-selected='true']{background:var(--card)!important;color:#fff!important;border-top:2px solid var(--accent)!important;}"
     ".stTabs [data-baseweb='tab-panel']{padding-top:18px;background:transparent;}"
-    ".ev-card{background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden;transition:transform .15s ease,border-color .15s ease,box-shadow .15s ease;display:flex;flex-direction:column;height:100%;}"
+    ".ev-card{background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden;transition:transform .15s ease,border-color .15s ease,box-shadow .15s ease;display:flex;flex-direction:column;height:100%;cursor:pointer;}"
     ".ev-card:hover{transform:translateY(-3px);border-color:var(--accent);box-shadow:0 8px 28px rgba(30,111,255,.18);}"
     ".ev-img{width:100%;height:200px;object-fit:cover;display:block;}.ev-noimg{width:100%;height:200px;background:linear-gradient(135deg,#0D1E42,#142040);display:flex;align-items:center;justify-content:center;font-size:4rem;}"
     ".ev-ribbon{color:#fff;font-size:.68rem;font-weight:700;letter-spacing:.8px;padding:4px 10px;text-transform:uppercase;}.r-concerto{background:var(--accent);}.r-festival{background:#FF6B2B;}.r-evento{background:#7C3AED;}"
@@ -327,7 +327,7 @@ def render_card(row):
     hb=('<span class="hot-badge">🔥 DESTAQUE</span>') if rel==3 else ""
     rb='<div class="ev-ribbon '+rcls(cat)+'">'+cat+hb+'</div>'
     sc="soon" if row["date"] and days_until(row["date"])<=30 else ""
-    mt=('<div class="ev-meta"><span class="'+sc+'">📅 '+ds+'</span>'+'<span>🎫 '+plat_s(plat)+'</span></div>')
+    mt=('<div class="ev-meta"><span>🎫 '+plat_s(plat)+'</span></div>')
     prows=price_rows(tj,td)
     if prows:
         lines=""
@@ -342,7 +342,9 @@ def render_card(row):
     is_range=src_label=="range"
     range_note=' <span style="font-size:.65rem;color:#F59E0B;font-weight:500">⚠️ gama aprox.</span>' if is_range else ""
     lk=('<a href="'+url+'" target="_blank" class="src-link">ver fonte ↗</a>') if url else ""
-    st.markdown('<div class="ev-card">'+ih+rb+'<div class="ev-body"><div class="ev-name">'+name+'</div>'+mt+pb+'<div class="ev-footer">'+lk+'</div></div></div>',unsafe_allow_html=True)
+    card_a=f'<a href="{url}" target="_blank" rel="noopener" style="text-decoration:none;color:inherit;display:block;">' if url else ''
+    card_z='</a>' if url else ''
+    st.markdown(card_a+'<div class="ev-card">'+ih+rb+'<div class="ev-body"><div class="ev-name">'+name+'</div>'+mt+pb+'<div class="ev-footer">'+lk+'</div></div></div>'+card_z,unsafe_allow_html=True)
 
 def render_grid(df):
     if df.empty:

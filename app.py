@@ -420,7 +420,7 @@ def plat_s(p):
 
 def price_rows(tj,td,is_manual=False):
     rows=[]
-    if is_manual and td:
+    if td:
         for line in td.splitlines():
             line=line.strip()
             if not line: continue
@@ -445,15 +445,6 @@ def price_rows(tj,td,is_manual=False):
                             rows.append({"sector":sec,"price":float(pv),"note":pn,"sold_out":bool(sold or p.get("sold_out",False))})
             if rows: return rows
         except: pass
-    if td:
-        for line in td.splitlines():
-            line=line.strip()
-            if not line: continue
-            if ":" in line:
-                pts=line.split(":",1); sec=pts[0].strip(); rest=pts[1].strip()
-                m=re.search(r"(\d+(?:[,.]\d+)?)\s*€",rest)
-                if m: rows.append({"sector":sec,"price":float(m.group(1).replace(",",".")),"note":"","sold_out":"esgotado" in rest.lower()})
-        if rows: return rows
     return []
 
 def render_card(row):
@@ -533,7 +524,7 @@ def main():
             '<div class="tt-title">Ticket Tracker</div>'
             '<div class="tt-sub">Concertos &amp; Festivais em Portugal — preços actualizados em tempo real</div>'
             '<div class="tt-tags">'
-              '<span class="tt-tag tt-tag-pt">🇵🇹 Portugal</span>'
+              '<span class="tt-tag tt-tag-pt"><img src="https://flagcdn.com/w80/pt.png" style="height:12px; border-radius:2px; vertical-align:middle; margin-top:-2px; margin-right:4px;">Portugal</span>'
               '<span class="tt-tag tt-tag-hot">🔥 Verão 2026</span>'
             '</div>'
           '</div>'

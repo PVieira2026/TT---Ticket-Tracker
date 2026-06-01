@@ -162,6 +162,9 @@ def render_card(row):
         if len(prows)>9: lines+='<div style="color:var(--muted);font-size:.72rem;padding:4px 0 0">+'+str(len(prows)-9)+' categorias</div>'
         pb='<div class="ev-prices"><div class="ev-prices-hdr">🎫 Bilhetes</div>'+lines+'</div>'
     else: pb='<div class="ev-prices"><span class="no-price">Preços em breve</span></div>'
+    src_label=row.get("price_source","")
+    is_range=src_label=="range"
+    range_note=' <span style="font-size:.65rem;color:#F59E0B;font-weight:500">⚠️ gama aprox.</span>' if is_range else ""
     lk=('<a href="'+url+'" target="_blank" class="src-link">ver fonte ↗</a>') if url else ""
     st.markdown('<div class="ev-card">'+ih+rb+'<div class="ev-body"><div class="ev-name">'+name+'</div>'+mt+pb+'<div class="ev-footer">'+lk+'</div></div></div>',unsafe_allow_html=True)
 

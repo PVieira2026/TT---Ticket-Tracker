@@ -59,7 +59,7 @@ def _s(k,d=""):
 
 SPREADSHEET_ID=_s("SPREADSHEET_ID"); GID=_s("SHEET_GID","0"); SA_JSON=_s("GOOGLE_SERVICE_ACCOUNT_JSON")
 
-@st.cache_data(ttl=300,show_spinner=False)
+@st.cache_data(ttl=60,show_spinner=False)
 def load_data():
     if not SPREADSHEET_ID or SPREADSHEET_ID=="id-da-sheet": return pd.DataFrame()
     if SA_JSON and len(SA_JSON)>50:
@@ -78,7 +78,8 @@ def load_data():
             return df.sort_values("_dt",na_position="last").reset_index(drop=True)
         except Exception as e: st.toast(f"gspread: {e}",icon="⚠️")
     try:
-        import time as _tt; url=f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/export?format=csv&gid={GID}&_t={int(_tt.time()//60)}"
+        import time as _ct
+        url=f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/export?format=csv&gid={GID}&nocache={int(_ct.time()//60)}"
         df=pd.read_csv(url,dtype=str).fillna("")
         for c in COLS:
             if c not in df.columns: df[c]=""
@@ -357,75 +358,68 @@ def render_grid(df):
         st.markdown("<br>",unsafe_allow_html=True)
 
 def main():
+    st.markdown('<div class="tt-hdr"><div style="display:flex;align-items:center"><span style="font-size:1.5rem;margin-right:12px">🏟️</span><div><h1>TT Tracker</h1><p>Concertos &amp; Festivais — preços em tempo real</p></div></div><span class="tt-badge">🇵🇹 Portugal</span></div>',unsafe_allow_html=True)
     nav=st.tabs(["🎵 Eventos","  ✏️ Adicionar"])
-    with st.spinner("A carregar eventos..."):
-        df=load_data()
+    with nav[0]:
+     with st.spinner("A carregar eventos..."): df=load_data()
     if df.empty:
         st.warning("⚙️ Configura os Streamlit Secrets.")
         st.code('SPREADSHEET_ID = "o-teu-id"\nSHEET_GID = "0"',language="toml"); st.stop()
-    import datetime as _dt2
-    fetch_t=_dt2.datetime.now().strftime("%H:%M:%S")
-    scrape_ts=""
-    _last=df["updated_at"].replace("","NaT"); _last=_last[_last!="NaT"]
-    if not _last.empty:
-        try: scrape_ts=" · Scrape: "+pd.to_datetime(_last.iloc[0]).strftime("%d/%m %H:%M")
+    import datetime as _dtnow
+    _fetch_t=_dtnow.datetime.now().strftime("%H:%M:%S")
+    last=df["updated_at"].replace("","NaT"); last=last[last!="NaT"]
+    _scrape=""
+    if not last.empty:
+        try: _scrape=" · scrape "+pd.to_datetime(last.iloc[0]).strftime("%d/%m %H:%M")
         except: pass
-    st.markdown(f'<div class="ts">🔄 Lido: {fetch_t} {scrape_ts} · {len(df)} eventos</div>',unsafe_allow_html=True)
-    nav=st.tabs(["🎵 Eventos","  ✏️ Adicionar"])
-    with nav[0]:
-        last=df["updated_at"].replace("","NaT"); last=last[last!="NaT"]
-        if not last.empty:
-            try:
-                ts=pd.to_datetime(last.iloc[0]).strftime("%d/%m/%Y %H:%M")
-                st.markdown('<div class="ts">🕐 Actualizado: '+ts+' UTC · '+str(len(df))+' eventos</div>',unsafe_allow_html=True)
-            except: pass
-        c1,c2,c3,c4,c5,c6=st.columns([2.5,1.5,1.5,1.3,1.3,0.8])
-        with c1: srch=st.text_input("","",placeholder="🔍  Pesquisar artista ou festival...",label_visibility="collapsed")
-        with c2:
-            pls=["Todas as plataformas"]+sorted(df["platform"].dropna().unique().tolist())
-            pf=st.selectbox("",pls,label_visibility="collapsed")
-        with c3:
-            pf2=st.selectbox("",["Qualquer preço","Até 30€","Até 60€","Até 100€","Até 150€","Mais de 150€"],label_visibility="collapsed")
-        with c4:
-            rel_f=st.selectbox("",["Todos os eventos","🔥 Destaque","🎪 Festivais verão","📅 Próximos 30 dias"],label_visibility="collapsed")
-        with c5:
-            sort_by=st.selectbox("",["Por data 📅","Por popularidade ⭐"],label_visibility="collapsed")
-        with c6:
-            if st.button("🔄",use_container_width=True,help="Actualizar"): load_data.clear(); st.rerun()
-        f=df.copy()
-        if srch.strip(): f=f[f["name"].str.contains(srch.strip(),case=False,na=False)]
-        if pf!="Todas as plataformas": f=f[f["platform"]==pf]
-        if pf2!="Qualquer preço":
-            def ok(r):
-                mn2,mx2=pp(r["price_min"]),pp(r["price_max"])
-                if mn2==0 and mx2==0: return True
-                p2=mn2 if mn2>0 else mx2
-                if   pf2=="Até 30€": return p2<=30
-                elif pf2=="Até 60€": return p2<=60
-                elif pf2=="Até 100€": return p2<=100
-                elif pf2=="Até 150€": return p2<=150
-                elif pf2=="Mais de 150€": return mx2>150
-                return True
-            f=f[f.apply(ok,axis=1)]
-        if "Destaque" in rel_f: f=f[f["_rel"]==3]
-        elif "Festivais" in rel_f: f=f[f["category"].str.contains("Festival",case=False,na=False)&(f["_rel"]>=2)]
-        elif "30 dias" in rel_f:
-            cutoff=(date.today()+timedelta(days=30)).isoformat()
-            f=f[f["date"]<=cutoff]
-        if "popularidade" in sort_by: f=f.sort_values(["_rel","_dt"],ascending=[False,True]).reset_index(drop=True)
-        else: f=f.sort_values("_dt",na_position="last").reset_index(drop=True)
-        tot=len(f); con=len(f[f["category"].str.contains("Concerto",case=False,na=False)])
-        fst=len(f[f["category"].str.contains("Festival",case=False,na=False)]); oth=tot-con-fst
-        wpr=len(f[f["price_min"].str.len()>0]); hot=len(f[f["_rel"]==3])
-        s1,s2,s3,s4,s5,s6=st.columns(6)
-        for col2,n,l in[(s1,tot,"Total"),(s2,con,"Concertos"),(s3,fst,"Festivais"),(s4,oth,"Outros"),(s5,wpr,"Com preços"),(s6,hot,"Destaque 🔥")]:
-            col2.markdown('<div class="sp"><div class="n">'+str(n)+'</div><div class="l">'+l+'</div></div>',unsafe_allow_html=True)
-        st.markdown("<br>",unsafe_allow_html=True)
-        t1,t2,t3,t4=st.tabs(["🎵 Todos ("+str(tot)+")","  🎤 Concertos ("+str(con)+")","  🎪 Festivais ("+str(fst)+")","  🎭 Outros ("+str(oth)+")"])
-        with t1: render_grid(f)
-        with t2: render_grid(f[f["category"].str.contains("Concerto",case=False,na=False)])
-        with t3: render_grid(f[f["category"].str.contains("Festival",case=False,na=False)])
-        with t4: render_grid(f[~f["category"].str.contains("Concerto|Festival",case=False,na=False)])
+    st.markdown(f'<div class="ts">🔄 Lido: {_fetch_t}{_scrape} · {len(df)} eventos</div>',unsafe_allow_html=True)
+    c1,c2,c3,c4,c5,c6=st.columns([2.5,1.5,1.5,1.3,1.3,0.8])
+    with c1: srch=st.text_input("","",placeholder="🔍  Pesquisar artista ou festival...",label_visibility="collapsed")
+    with c2:
+        pls=["Todas as plataformas"]+sorted(df["platform"].dropna().unique().tolist())
+        pf=st.selectbox("",pls,label_visibility="collapsed")
+    with c3:
+        pf2=st.selectbox("",["Qualquer preço","Até 30€","Até 60€","Até 100€","Até 150€","Mais de 150€"],label_visibility="collapsed")
+    with c4:
+        rel_f=st.selectbox("",["Todos os eventos","🔥 Destaque","🎪 Festivais verão","📅 Próximos 30 dias"],label_visibility="collapsed")
+    with c5:
+        sort_by=st.selectbox("",["Por data 📅","Por popularidade ⭐"],label_visibility="collapsed")
+    with c6:
+        if st.button("🔄",use_container_width=True,help="Actualizar"): load_data.clear(); st.rerun()
+    f=df.copy()
+    if srch.strip(): f=f[f["name"].str.contains(srch.strip(),case=False,na=False)]
+    if pf!="Todas as plataformas": f=f[f["platform"]==pf]
+    if pf2!="Qualquer preço":
+        def ok(r):
+            mn2,mx2=pp(r["price_min"]),pp(r["price_max"])
+            if mn2==0 and mx2==0: return True
+            p2=mn2 if mn2>0 else mx2
+            if   pf2=="Até 30€": return p2<=30
+            elif pf2=="Até 60€": return p2<=60
+            elif pf2=="Até 100€": return p2<=100
+            elif pf2=="Até 150€": return p2<=150
+            elif pf2=="Mais de 150€": return mx2>150
+            return True
+        f=f[f.apply(ok,axis=1)]
+    if "Destaque" in rel_f: f=f[f["_rel"]==3]
+    elif "Festivais" in rel_f: f=f[f["category"].str.contains("Festival",case=False,na=False)&(f["_rel"]>=2)]
+    elif "30 dias" in rel_f:
+        cutoff=(date.today()+timedelta(days=30)).isoformat()
+        f=f[f["date"]<=cutoff]
+    if "popularidade" in sort_by: f=f.sort_values(["_rel","_dt"],ascending=[False,True]).reset_index(drop=True)
+    else: f=f.sort_values("_dt",na_position="last").reset_index(drop=True)
+    tot=len(f); con=len(f[f["category"].str.contains("Concerto",case=False,na=False)])
+    fst=len(f[f["category"].str.contains("Festival",case=False,na=False)]); oth=tot-con-fst
+    wpr=len(f[f["price_min"].str.len()>0]); hot=len(f[f["_rel"]==3])
+    s1,s2,s3,s4,s5,s6=st.columns(6)
+    for col2,n,l in[(s1,tot,"Total"),(s2,con,"Concertos"),(s3,fst,"Festivais"),(s4,oth,"Outros"),(s5,wpr,"Com preços"),(s6,hot,"Destaque 🔥")]:
+        col2.markdown('<div class="sp"><div class="n">'+str(n)+'</div><div class="l">'+l+'</div></div>',unsafe_allow_html=True)
+    st.markdown("<br>",unsafe_allow_html=True)
+    t1,t2,t3,t4=st.tabs(["🎵 Todos ("+str(tot)+")","  🎤 Concertos ("+str(con)+")","  🎪 Festivais ("+str(fst)+")","  🎭 Outros ("+str(oth)+")"])
+    with t1: render_grid(f)
+    with t2: render_grid(f[f["category"].str.contains("Concerto",case=False,na=False)])
+    with t3: render_grid(f[f["category"].str.contains("Festival",case=False,na=False)])
+    with t4: render_grid(f[~f["category"].str.contains("Concerto|Festival",case=False,na=False)])
 
     with nav[1]:
         _render_manual_tab()

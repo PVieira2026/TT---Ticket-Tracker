@@ -419,8 +419,8 @@ def price_rows(tj,td,is_manual=False):
     rows=[]
     if is_manual and td:
         for line in td.splitlines():
-            line=line.strip().lstrip()
-            if not line or line.lower().startswith("bilhete"): continue
+            line=line.strip()
+            if not line: continue
             if ":" in line:
                 pts=line.split(":",1); sec=pts[0].strip(); rest=pts[1].strip()
                 m=re.search(r"(\d+(?:[,.]\d+)?)\s*€",rest)
@@ -444,8 +444,8 @@ def price_rows(tj,td,is_manual=False):
         except: pass
     if td:
         for line in td.splitlines():
-            line=line.strip().lstrip()
-            if not line or line.lower().startswith("bilhete"): continue
+            line=line.strip()
+            if not line: continue
             if ":" in line:
                 pts=line.split(":",1); sec=pts[0].strip(); rest=pts[1].strip()
                 m=re.search(r"(\d+(?:[,.]\d+)?)\s*€",rest)

@@ -156,7 +156,7 @@ def _s(k,d=""):
 SPREADSHEET_ID=_s("SPREADSHEET_ID"); GID=_s("SHEET_GID","0"); SA_JSON=_s("GOOGLE_SERVICE_ACCOUNT_JSON")
 
 @st.cache_data(ttl=30,show_spinner=False)
-def load_data():
+def load_data(cache_v=0):
     """Load events from Google Sheets.
     - Uses gspread (service account) if SA_JSON is available — always gets fresh data.
     - Falls back to CSV export with a per-second cache-buster so manual edits appear within seconds.
@@ -379,6 +379,7 @@ def _render_manual_tab():
                     if ev_id in id_map: ws.update(f'A{id_map[ev_id]}',[row_data]); st.success(f'✅ "{nm}" actualizado!')
                     else: ws.append_row(row_data,value_input_option='USER_ENTERED'); st.success(f'✅ "{nm}" adicionado!')
                     st.cache_data.clear()
+                    st.session_state.cache_v = st.session_state.get("cache_v", 0) + 1
                     for k in ['mr','mn','mm_img_v']:
                         if k in st.session_state: del st.session_state[k]
                 except Exception as e: st.error(f'Erro: {e}')
@@ -495,8 +496,10 @@ def render_grid(df):
 
 def main():
     # ── HERO HEADER ──────────────────────────────────────────────────────
+    if "cache_v" not in st.session_state:
+        st.session_state.cache_v = 0
     with st.spinner("A carregar eventos..."):
-        df_all=load_data()
+        df_all=load_data(cache_v=st.session_state.cache_v)
     tot_all=len(df_all)
     fst_all=len(df_all[df_all["category"].str.contains("Festival",case=False,na=False)]) if not df_all.empty else 0
     import datetime as _dtnow
@@ -552,7 +555,8 @@ def main():
             sort_by=st.selectbox("",["Por data 📅","Por popularidade ⭐"],label_visibility="collapsed")
         with c6:
             if st.button("🔄",use_container_width=True,help="Forçar actualização do Sheet"):
-                load_data.clear(); st.rerun()
+                st.session_state.cache_v = st.session_state.get("cache_v", 0) + 1
+                st.rerun()
         f=df.copy()
         if srch.strip(): f=f[f["name"].str.contains(srch.strip(),case=False,na=False)]
         if pf!="Todas as plataformas": f=f[f["platform"]==pf]

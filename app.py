@@ -74,6 +74,7 @@ def load_data():
                 if c not in df.columns: df[c]=""
             df["_dt"]=pd.to_datetime(df["date"],errors="coerce")
             df["_rel"]=df.apply(lambda r:relevance(r["name"],r.get("url","")),axis=1)
+            df=_dedup_display(df)
             return df.sort_values("_dt",na_position="last").reset_index(drop=True)
         except Exception as e: st.toast(f"gspread: {e}",icon="⚠️")
     try:
@@ -83,8 +84,132 @@ def load_data():
             if c not in df.columns: df[c]=""
         df["_dt"]=pd.to_datetime(df["date"],errors="coerce")
         df["_rel"]=df.apply(lambda r:relevance(r["name"],r.get("url","")),axis=1)
+        df=_dedup_display(df)
         return df.sort_values("_dt",na_position="last").reset_index(drop=True)
     except Exception as e: st.error(f"Erro: {e}"); return pd.DataFrame()
+
+
+def _dedup_display(df):
+    import re as _r
+    if df.empty: return df
+    def norm(n): return ' '.join(sorted(_r.sub(r'[^a-z0-9\s]',' ',n.lower()).split()))
+    df['_norm']=df['name'].apply(norm)
+    df['_score']=(df['price_min'].str.len()>0).astype(int)*10+df['tickets_detail'].str.len().fillna(0).clip(0,100)
+    df=df.sort_values('_score',ascending=False).drop_duplicates(subset=['_norm'],keep='first')
+    return df.drop(columns=['_norm','_score'],errors='ignore')
+
+def _search_event_web(query):
+    import requests as _req
+    sk=''
+    try: sk=os.environ.get('SERPER_API_KEY') or st.secrets.get('SERPER_API_KEY','')
+    except: sk=os.environ.get('SERPER_API_KEY','')
+    snippets=[]
+    if sk:
+        try:
+            resp=_req.post('https://google.serper.dev/search',
+                headers={'X-API-KEY':sk,'Content-Type':'application/json'},
+                json={'q':query+' bilhetes preco portugal','gl':'pt','hl':'pt','num':6},timeout=12)
+            if resp.status_code==200:
+                data=resp.json()
+                if data.get('answerBox'):
+                    ab=data['answerBox']
+                    snippets.append({'title':'answer','snippet':ab.get('snippet',ab.get('answer','')),'link':ab.get('link','')})
+                for r2 in data.get('organic',[]): snippets.append({'title':r2.get('title',''),'snippet':r2.get('snippet',''),'link':r2.get('link','')})
+        except: pass
+    if not snippets:
+        try:
+            resp=_req.get('https://api.duckduckgo.com/',params={'q':query+' bilhetes','format':'json','no_html':1},timeout=10)
+            data=resp.json()
+            if data.get('AbstractText'): snippets.append({'title':data.get('Heading',''),'snippet':data['AbstractText'],'link':data.get('AbstractURL','')})
+        except: pass
+    return snippets
+
+def _parse_snippets(snippets):
+    combined=' | '.join(s.get('snippet','') for s in snippets)
+    MONTHS={'jan':1,'fev':2,'mar':3,'abr':4,'mai':5,'jun':6,'jul':7,'ago':8,'set':9,'out':10,'nov':11,'dez':12,'janeiro':1,'fevereiro':2,'marco':3,'abril':4,'maio':5,'junho':6,'julho':7,'agosto':8,'setembro':9,'outubro':10,'novembro':11,'dezembro':12}
+    date_found=''
+    for s in snippets:
+        txt=s.get('snippet','')
+        m=re.search(r'(\d{1,2})\s+(?:de\s+)?([a-z\u00e1\u00e9\u00ed\u00f3\u00fa\u00e7]+)(?:\s+de)?\s+(202[5-9])',txt,re.I)
+        if m:
+            mon=MONTHS.get(m.group(2).lower()) or MONTHS.get(m.group(2)[:3].lower())
+            if mon: date_found=f"{m.group(3)}-{mon:02d}-{int(m.group(1)):02d}"; break
+        m2=re.search(r'(\d{2})/(\d{2})/(202[5-9])',txt)
+        if m2: date_found=f"{m2.group(3)}-{m2.group(2)}-{m2.group(1)}"; break
+    price_lines=[l.strip() for l in re.split(r'[\n;|]',combined) if '\u20ac' in l and 8<=len(l.strip())<=150]
+    url=''
+    for s in snippets:
+        lnk=s.get('link','')
+        if any(p in lnk for p in ['blueticket','ticketline','bilheteira.fnac','bol.pt','livenation','everythingisnew']):
+            url=lnk; break
+    if not url and snippets: url=snippets[0].get('link','')
+    return {'date':date_found,'price_lines':price_lines,'url':url}
+
+def _render_manual_tab():
+    st.markdown('<div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:20px"><h3 style="color:#fff;margin:0 0 8px">✏️ Adicionar Evento</h3><p style="color:var(--muted);font-size:.85rem;margin:0">Pesquisa, confirma e guarda no Sheet.</p></div>',unsafe_allow_html=True)
+    c1,c2=st.columns([4,1])
+    with c1: q=st.text_input('','',placeholder='🔍  Ex: NOS Alive 2026, Placebo Lisboa...',label_visibility='collapsed',key='mq')
+    with c2: go=st.button('🔍 Pesquisar',use_container_width=True,key='ms')
+    if go and q.strip():
+        with st.spinner('A pesquisar...'):
+            snips=_search_event_web(q.strip()); parsed=_parse_snippets(snips)
+        st.session_state['mr']=parsed; st.session_state['mn']=q.strip()
+    if 'mr' not in st.session_state: return
+    r=st.session_state['mr']
+    st.markdown('<br>',unsafe_allow_html=True)
+    st.markdown('#### 📋 Confirma antes de guardar')
+    col1,col2=st.columns(2)
+    with col1:
+        nm=st.text_input('Nome',value=st.session_state.get('mn',''),key='mm_n')
+        dt=st.text_input('Data (YYYY-MM-DD)',value=r.get('date',''),placeholder='2026-07-11',key='mm_d')
+        plat=st.selectbox('Plataforma',['FNAC Bilheteira','Ticketline','Everything Is New','BOL','Blueticket','Outro'],key='mm_p')
+        cat=st.selectbox('Categoria',['Festival','Concerto','Evento'],key='mm_c')
+    with col2:
+        ev_url=st.text_input('URL',value=r.get('url',''),key='mm_u')
+        pmin=st.text_input('Preço mínimo (€)','',placeholder='25',key='mm_pn')
+        pmax=st.text_input('Preço máximo (€)','',placeholder='85',key='mm_px')
+        detail=st.text_area('Bilhetes (linha por linha)','',height=90,placeholder='Bilhete Diário: 25€',key='mm_det')
+    if r.get('price_lines'):
+        st.markdown('**Preços encontrados** (copia o que precisas):')
+        for ln in r['price_lines'][:6]: st.code(ln,language=None)
+    st.markdown('<br>',unsafe_allow_html=True)
+    cola,colb=st.columns([3,1])
+    with colb:
+        if st.button('❌ Limpar',use_container_width=True,key='mm_clear'):
+            for k in ['mr','mn']:
+                if k in st.session_state: del st.session_state[k]
+            st.rerun()
+    with cola:
+        if st.button('✅ Guardar no Sheet',use_container_width=True,key='mm_save',type='primary'):
+            if not nm or not dt: st.error('Nome e data são obrigatórios.')
+            elif not SPREADSHEET_ID or not SA_JSON or len(SA_JSON)<50: st.error('Configura os Streamlit Secrets.')
+            else:
+                try:
+                    import gspread
+                    from google.oauth2.service_account import Credentials as _Cred
+                    SCOPES=['https://www.googleapis.com/auth/spreadsheets','https://www.googleapis.com/auth/drive.readonly']
+                    creds=_Cred.from_service_account_info(json.loads(SA_JSON),scopes=SCOPES)
+                    gc=gspread.authorize(creds); ws=gc.open_by_key(SPREADSHEET_ID).worksheet('Eventos')
+                    slug=re.sub(r'[^a-z0-9]+','-',nm.lower()).strip('-'); ev_id=f'manual-{slug[:30]}'
+                    lo=float(pmin.replace(',','.')) if pmin else 0; hi=float(pmax.replace(',','.')) if pmax else lo
+                    rows_d=[]
+                    if detail:
+                        for ln in detail.splitlines():
+                            m3=re.search(r'([^:]+):\s*(\d+(?:[,.]\d+)?)\s*\u20ac',ln)
+                            if m3: rows_d.append({'sector':m3.group(1).strip(),'price':float(m3.group(2).replace(',','.')), 'note':'','sold_out':False})
+                    if not rows_d and lo:
+                        rows_d=[{'sector':'Preço mínimo','price':lo,'note':'manual','sold_out':False},
+                                 {'sector':'Preço máximo','price':hi,'note':'manual','sold_out':False}]
+                    prices_d=[r2['price'] for r2 in rows_d]
+                    tj=json.dumps({'summary':{'min':min(prices_d),'max':max(prices_d),'currency':'EUR'},'categories':[{'name':'Bilhetes','rows':rows_d}]},ensure_ascii=False) if prices_d else ''
+                    row_data=[ev_id,nm,dt,plat,cat,str(min(prices_d)) if prices_d else '',str(max(prices_d)) if prices_d else '',ev_url,'',tj,detail,datetime.utcnow().isoformat(),'manual']
+                    existing=ws.get_all_records(); id_map={r2.get('id'):i+2 for i,r2 in enumerate(existing)}
+                    if ev_id in id_map: ws.update(f'A{id_map[ev_id]}',[row_data]); st.success(f'✅ "{nm}" actualizado!')
+                    else: ws.append_row(row_data,value_input_option='USER_ENTERED'); st.success(f'✅ "{nm}" adicionado!')
+                    st.cache_data.clear()
+                    for k in ['mr','mn']:
+                        if k in st.session_state: del st.session_state[k]
+                except Exception as e: st.error(f'Erro: {e}')
 
 def pp(v):
     try: return float(str(v).replace(",",".").strip())
@@ -180,7 +305,9 @@ def render_grid(df):
 
 def main():
     st.markdown('<div class="tt-hdr"><div style="display:flex;align-items:center"><span style="font-size:1.5rem;margin-right:12px">🏟️</span><div><h1>TT Tracker</h1><p>Concertos &amp; Festivais — preços em tempo real</p></div></div><span class="tt-badge">🇵🇹 Portugal</span></div>',unsafe_allow_html=True)
-    with st.spinner("A carregar eventos..."): df=load_data()
+    nav=st.tabs(["🎵 Eventos","  ✏️ Adicionar"])
+    with nav[0]:
+     with st.spinner("A carregar eventos..."): df=load_data()
     if df.empty:
         st.warning("⚙️ Configura os Streamlit Secrets.")
         st.code('SPREADSHEET_ID = "o-teu-id"\nSHEET_GID = "0"',language="toml"); st.stop()
@@ -237,5 +364,8 @@ def main():
     with t2: render_grid(f[f["category"].str.contains("Concerto",case=False,na=False)])
     with t3: render_grid(f[f["category"].str.contains("Festival",case=False,na=False)])
     with t4: render_grid(f[~f["category"].str.contains("Concerto|Festival",case=False,na=False)])
+
+    with nav[1]:
+        _render_manual_tab()
 
 if __name__=="__main__": main()

@@ -155,12 +155,10 @@ def _s(k,d=""):
 
 SPREADSHEET_ID=_s("SPREADSHEET_ID"); GID=_s("SHEET_GID","0"); SA_JSON=_s("GOOGLE_SERVICE_ACCOUNT_JSON")
 
-@st.cache_data(ttl=30,show_spinner=False)
-def load_data(cache_v=0):
+def load_data():
     """Load events from Google Sheets.
     - Uses gspread (service account) if SA_JSON is available — always gets fresh data.
     - Falls back to CSV export with a per-second cache-buster so manual edits appear within seconds.
-    - TTL is 30 s so manual edits are visible quickly without hammering the API.
     """
     if not SPREADSHEET_ID or SPREADSHEET_ID=="id-da-sheet": return pd.DataFrame()
     if SA_JSON and len(SA_JSON)>50:
@@ -197,6 +195,10 @@ def load_data(cache_v=0):
         return df.sort_values(["_dt","_row_idx"],na_position="last").reset_index(drop=True)
     except Exception as e: st.error(f"Erro ao carregar dados: {e}"); return pd.DataFrame()
 
+def get_data(force=False):
+    if "df_all" not in st.session_state or force:
+        st.session_state.df_all = load_data()
+    return st.session_state.df_all
 
 def _dedup_display(df):
     """Deduplicate events by normalised name.
@@ -380,7 +382,7 @@ def _render_manual_tab():
                     if ev_id in id_map: ws.update(f'A{id_map[ev_id]}',[row_data]); st.success(f'✅ "{nm}" actualizado!')
                     else: ws.append_row(row_data,value_input_option='USER_ENTERED'); st.success(f'✅ "{nm}" adicionado!')
                     st.cache_data.clear()
-                    st.session_state.cache_v = st.session_state.get("cache_v", 0) + 1
+                    get_data(force=True)
                     for k in ['mr','mn','mm_img_v']:
                         if k in st.session_state: del st.session_state[k]
                 except Exception as e: st.error(f'Erro: {e}')
@@ -507,10 +509,8 @@ def render_grid(df):
 
 def main():
     # ── HERO HEADER ──────────────────────────────────────────────────────
-    if "cache_v" not in st.session_state:
-        st.session_state.cache_v = 0
     with st.spinner("A carregar eventos..."):
-        df_all=load_data(cache_v=st.session_state.cache_v)
+        df_all=get_data()
     tot_all=len(df_all)
     fst_all=len(df_all[df_all["category"].str.contains("Festival",case=False,na=False)]) if not df_all.empty else 0
     import datetime as _dtnow
@@ -566,7 +566,7 @@ def main():
             sort_by=st.selectbox("",["Por data 📅","Por popularidade ⭐"],label_visibility="collapsed")
         with c6:
             if st.button("🔄",use_container_width=True,help="Forçar actualização do Sheet"):
-                st.session_state.cache_v = st.session_state.get("cache_v", 0) + 1
+                get_data(force=True)
                 st.rerun()
         f=df.copy()
         if srch.strip(): f=f[f["name"].str.contains(srch.strip(),case=False,na=False)]

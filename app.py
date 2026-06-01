@@ -155,6 +155,7 @@ def _s(k,d=""):
 
 SPREADSHEET_ID=_s("SPREADSHEET_ID"); GID=_s("SHEET_GID","0"); SA_JSON=_s("GOOGLE_SERVICE_ACCOUNT_JSON")
 
+@st.cache_data(ttl=15, show_spinner=False)
 def load_data():
     """Load events from Google Sheets.
     - Uses gspread (service account) if SA_JSON is available — always gets fresh data.
@@ -196,9 +197,9 @@ def load_data():
     except Exception as e: st.error(f"Erro ao carregar dados: {e}"); return pd.DataFrame()
 
 def get_data(force=False):
-    if "df_all" not in st.session_state or force:
-        st.session_state.df_all = load_data()
-    return st.session_state.df_all
+    if force:
+        load_data.clear()
+    return load_data()
 
 def _dedup_display(df):
     """Deduplicate events by normalised name.

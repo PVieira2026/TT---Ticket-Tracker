@@ -107,7 +107,26 @@ def extract_prices(text, filter_boilerplate=False):
 
     return rows
 
+
+def _prefer_integer_prices(rows):
+    if not rows: return rows
+    result = []
+    used = set()
+    sorted_rows = sorted(rows, key=lambda r: (0 if r['price']==int(r['price']) else 1, r['price']))
+    for row in sorted_rows:
+        key = (row['sector'], row['price'])
+        if key in used: continue
+        is_fee = any(
+            kept['sector']==row['sector'] and kept['price']==int(kept['price']) and
+            1.0 < row['price']/kept['price'] < 1.25
+            for kept in result
+        )
+        if not is_fee:
+            result.append(row); used.add(key)
+    return result
+
 def build_tickets_detail(rows):
+    rows=_prefer_integer_prices(rows)
     if not rows: return ""
     lines=["Bilhetes"]
     for r in rows:
@@ -116,6 +135,7 @@ def build_tickets_detail(rows):
     return "\n".join(lines)
 
 def build_tickets_json(rows):
+    rows=_prefer_integer_prices(rows)
     if not rows: return ""
     prices=[r["price"] for r in rows]
     return json.dumps({"summary":{"min":min(prices),"max":max(prices),"currency":"EUR"},

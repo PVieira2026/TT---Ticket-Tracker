@@ -309,12 +309,21 @@ def price_rows(tj,td):
     # PRIORIDADE 1 — tickets_detail (info manual, sempre preferida)
     if td:
         for line in td.splitlines():
-            line=line.strip().lstrip()
+            line=line.strip()
             if not line: continue
+            # Formato 1 — "Sector: 25€"
             if ":" in line:
                 pts=line.split(":",1); sec=pts[0].strip(); rest=pts[1].strip()
                 m=re.search(r"(\d+(?:[,.]\d+)?)\s*€",rest)
-                if m: rows.append({"sector":sec,"price":float(m.group(1).replace(",",".")),"note":"","sold_out":"esgotado" in rest.lower()})
+                if m and sec:
+                    rows.append({"sector":sec,"price":float(m.group(1).replace(",",".")),"note":"","sold_out":"esgotado" in rest.lower()})
+                    continue
+            # Formato 2 — "Sector Name 70,00€"
+            m=re.search(r"^(.+?)\s+(\d+(?:[,.]\d+)?)\s*€\s*$",line)
+            if m:
+                sec=m.group(1).strip(); price=float(m.group(2).replace(",","."))
+                if sec and price>0:
+                    rows.append({"sector":sec,"price":price,"note":"","sold_out":"esgotado" in line.lower()})
         if rows: return rows
     # PRIORIDADE 2 — tickets_json (gerado automaticamente pelo scraper)
     if tj:
@@ -329,7 +338,7 @@ def price_rows(tj,td):
             if rows: return rows
         except: pass
     return []
-
+    
 def render_card(row):
     name=row["name"]; ds=fd(row["date"]) if row["date"] else "Data TBD"
     plat=row["platform"]; cat=row.get("category","Evento") or "Evento"

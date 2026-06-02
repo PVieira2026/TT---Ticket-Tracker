@@ -306,6 +306,17 @@ def plat_s(p):
 
 def price_rows(tj,td):
     rows=[]
+    # PRIORIDADE 1 — tickets_detail (info manual, sempre preferida)
+    if td:
+        for line in td.splitlines():
+            line=line.strip().lstrip()
+            if not line or line.lower().startswith("bilhete"): continue
+            if ":" in line:
+                pts=line.split(":",1); sec=pts[0].strip(); rest=pts[1].strip()
+                m=re.search(r"(\d+(?:[,.]\d+)?)\s*€",rest)
+                if m: rows.append({"sector":sec,"price":float(m.group(1).replace(",",".")),"note":"","sold_out":"esgotado" in rest.lower()})
+        if rows: return rows
+    # PRIORIDADE 2 — tickets_json (gerado automaticamente pelo scraper)
     if tj:
         try:
             for cat in json.loads(tj).get("categories",[]):
@@ -317,15 +328,6 @@ def price_rows(tj,td):
                         if pv and float(pv)>0: rows.append({"sector":sec,"price":float(pv),"note":pn,"sold_out":bool(sold or p.get("sold_out",False))})
             if rows: return rows
         except: pass
-    if td:
-        for line in td.splitlines():
-            line=line.strip().lstrip()
-            if not line or line.lower().startswith("bilhete"): continue
-            if ":" in line:
-                pts=line.split(":",1); sec=pts[0].strip(); rest=pts[1].strip()
-                m=re.search(r"(\d+(?:[,.]\d+)?)\s*€",rest)
-                if m: rows.append({"sector":sec,"price":float(m.group(1).replace(",",".")),"note":"","sold_out":"esgotado" in rest.lower()})
-        if rows: return rows
     return []
 
 def render_card(row):

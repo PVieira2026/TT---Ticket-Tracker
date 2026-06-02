@@ -19,13 +19,13 @@ CSS = (
     ".stTextInput input{background:var(--card)!important;border:1px solid var(--border)!important;border-radius:10px!important;color:var(--text)!important;padding:10px 16px!important;}"
     ".stTextInput input:focus{border-color:var(--accent)!important;}"
     ".stSelectbox>div>div{background:var(--card)!important;border:1px solid var(--border)!important;border-radius:10px!important;color:var(--text)!important;}"
-    ".sp{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;text-align:center;}"
+    "/* .sp definido acima */"
     ".sp .n{font-size:1.6rem;font-weight:800;color:var(--accent);line-height:1;}.sp .l{font-size:.7rem;color:var(--muted);margin-top:4px;text-transform:uppercase;letter-spacing:1px;}"
     ".stTabs [data-baseweb='tab-list']{gap:6px;background:transparent;border-bottom:1px solid var(--border)!important;}"
     ".stTabs [data-baseweb='tab']{background:transparent;border:none;border-radius:8px 8px 0 0;color:var(--muted);font-weight:600;padding:8px 18px;font-size:.88rem;}"
     ".stTabs [aria-selected='true']{background:var(--card)!important;color:#fff!important;border-top:2px solid var(--accent)!important;}"
     ".stTabs [data-baseweb='tab-panel']{padding-top:18px;background:transparent;}"
-    ".ev-card{background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden;transition:transform .15s ease,border-color .15s ease,box-shadow .15s ease;display:flex;flex-direction:column;height:100%;cursor:pointer;}"
+    ".ev-card{background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden;transition:transform .15s ease,border-color .15s ease,box-shadow .15s ease;display:flex;flex-direction:column;height:100%;cursor:default;}"
     ".ev-card:hover{transform:translateY(-3px);border-color:var(--accent);box-shadow:0 8px 28px rgba(30,111,255,.18);}"
     ".ev-img{width:100%;height:200px;object-fit:cover;display:block;}.ev-noimg{width:100%;height:200px;background:linear-gradient(135deg,#0D1E42,#142040);display:flex;align-items:center;justify-content:center;font-size:4rem;}"
     ".ev-ribbon{color:#fff;font-size:.68rem;font-weight:700;letter-spacing:.8px;padding:4px 10px;text-transform:uppercase;}.r-concerto{background:var(--accent);}.r-festival{background:#FF6B2B;}.r-evento{background:#7C3AED;}"
@@ -38,7 +38,7 @@ CSS = (
     ".pr-sec{color:var(--text);font-weight:500;}.pr-val{color:var(--green);font-weight:700;font-size:.9rem;white-space:nowrap;}"
     ".pr-sold{color:#EF4444;font-size:.72rem;font-weight:600;margin-left:4px;}.pr-note{color:var(--muted);font-size:.72rem;font-style:italic;margin-left:4px;}"
     ".no-price{color:var(--muted);font-size:.82rem;font-style:italic;padding:4px 0;}.ev-footer{display:flex;align-items:center;justify-content:flex-end;}"
-    ".src-link{color:var(--muted);font-size:.72rem;text-decoration:none!important;}.src-link:hover{color:var(--text)!important;}"
+    ".src-link{color:var(--muted);font-size:.72rem;text-decoration:none!important;}.src-link:hover{color:var(--text)!important;}"".ev-img-link{display:block;cursor:pointer;}.ev-img-link:hover .ev-img,.ev-img-link:hover .ev-noimg{opacity:.88;}"".ev-title-link{color:#fff!important;text-decoration:none!important;cursor:pointer;}.ev-title-link:hover{color:var(--accent)!important;}"".ver-mais-btn{background:none;border:none;color:var(--muted);font-size:.72rem;padding:4px 0 0;cursor:pointer;text-align:left;width:100%;}"".ver-mais-btn:hover{color:var(--accent);}"".sp{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;text-align:center;cursor:pointer;text-decoration:none!important;display:block;transition:border-color .15s;}"".sp:hover{border-color:var(--accent);}"".sp .n{font-size:1.6rem;font-weight:800;color:var(--accent);line-height:1;}.sp .l{font-size:.7rem;color:var(--muted);margin-top:4px;text-transform:uppercase;letter-spacing:1px;}"
     ".no-res{text-align:center;padding:60px 20px;color:var(--muted);}.ts{font-size:.73rem;color:var(--muted);text-align:right;margin-top:-8px;margin-bottom:14px;}"
     "</style>"
 )
@@ -183,7 +183,21 @@ def _render_manual_tab():
     col1,col2=st.columns(2)
     with col1:
         nm=st.text_input('Nome',value=st.session_state.get('mn',''),key='mm_n')
-        dt=st.text_input('Data (YYYY-MM-DD)',value=r.get('date',''),placeholder='2026-07-11',key='mm_d')
+        _dt_default = None
+        try:
+            import datetime as _dtt
+            _dt_str = r.get('date', '')
+            if _dt_str: _dt_default = _dtt.date.fromisoformat(_dt_str)
+        except: pass
+        _dt_val = st.date_input(
+            'Data do evento',
+            value=_dt_default,
+            min_value=__import__('datetime').date.today(),
+            format='DD/MM/YYYY',
+            key='mm_d'
+        )
+        dt = _dt_val.isoformat() if _dt_val else ''
+
         plat=st.selectbox('Plataforma',['FNAC Bilheteira','Ticketline','Everything Is New','BOL','Blueticket','Outro'],key='mm_p')
         cat=st.selectbox('Categoria',['Festival','Concerto','Evento'],key='mm_c')
     with col2:
@@ -352,21 +366,40 @@ def render_card(row):
     mt=('<div class="ev-meta"><span>🎫 '+plat_s(plat)+'</span></div>')
     prows=price_rows(tj,td)
     if prows:
-        lines=""
-        for r in prows[:9]:
-            nt=('<span class="pr-note">('+r["note"]+')</span>') if r["note"] else ""
-            sl='<span class="pr-sold">ESGOTADO</span>' if r["sold_out"] else ""
-            lines+=('<div class="pr-row"><span class="pr-sec">'+r["sector"]+nt+'</span>'+'<span class="pr-val">'+str(int(r["price"]))+'€'+sl+'</span></div>')
-        if len(prows)>9: lines+='<div style="color:var(--muted);font-size:.72rem;padding:4px 0 0">+'+str(len(prows)-9)+' categorias</div>'
-        pb='<div class="ev-prices"><div class="ev-prices-hdr">🎫 Bilhetes</div>'+lines+'</div>'
+        import hashlib as _hlib
+        _uid = "pr_" + _hlib.md5(name.encode()).hexdigest()[:8]
+        VISIBLE = 6
+        def _pr_line(r):
+            nt = ('<span class="pr-note">(' + r["note"] + ')</span>') if r["note"] else ""
+            sl = '<span class="pr-sold">ESGOTADO</span>' if r["sold_out"] else ""
+            return ('<div class="pr-row"><span class="pr-sec">' + r["sector"] + nt + '</span>'
+                    + '<span class="pr-val">' + str(int(r["price"])) + '€' + sl + '</span></div>')
+        visible_lines = "".join(_pr_line(r) for r in prows[:VISIBLE])
+        extra_lines   = "".join(_pr_line(r) for r in prows[VISIBLE:])
+        extra_block = ""
+        ver_mais_btn = ""
+        if len(prows) > VISIBLE:
+            extra_block = ('<div id="' + _uid + '" style="display:none">' + extra_lines + '</div>')
+            ver_mais_btn = (
+                '<button class="ver-mais-btn" onclick="(function(b){' 
+                'var el=document.getElementById(&quot;' + _uid + '&quot;);' 
+                'if(el.style.display===&quot;none&quot;){el.style.display=&quot;block&quot;;b.textContent=&quot;▲ ver menos&quot;}' 
+                'else{el.style.display=&quot;none&quot;;b.textContent=&quot;▼ +' + str(len(prows) - VISIBLE) + ' categorias&quot;}})(this)">' 
+                '▼ +' + str(len(prows) - VISIBLE) + ' categorias</button>'
+            )
+        pb = ('<div class="ev-prices"><div class="ev-prices-hdr">🎫 Bilhetes</div>'
+              + visible_lines + extra_block + ver_mais_btn + '</div>')
     else: pb='<div class="ev-prices"><span class="no-price">Preços em breve</span></div>'
     src_label=row.get("price_source","")
     is_range=src_label=="range"
     range_note=' <span style="font-size:.65rem;color:#F59E0B;font-weight:500">⚠️ gama aprox.</span>' if is_range else ""
     lk=('<a href="'+url+'" target="_blank" class="src-link">ver fonte ↗</a>') if url else ""
-    card_a=f'<a href="{url}" target="_blank" rel="noopener" style="text-decoration:none;color:inherit;display:block;">' if url else ''
-    card_z='</a>' if url else ''
-    st.markdown(card_a+'<div class="ev-card">'+ih+rb+'<div class="ev-body"><div class="ev-name">'+name+'</div>'+mt+pb+'<div class="ev-footer">'+lk+'</div></div></div>'+card_z,unsafe_allow_html=True)
+    # Imagem com link apenas na imagem
+    if url:
+        ih = ('<a href="'+url+'" target="_blank" class="ev-img-link">'+ih+'</a>')
+    # Título com link apenas no título
+    title_html = ('<a href="'+url+'" target="_blank" class="ev-title-link ev-name">'+name+'</a>') if url else ('<div class="ev-name">'+name+'</div>')
+    st.markdown('<div class="ev-card">'+ih+rb+'<div class="ev-body">'+title_html+mt+pb+'<div class="ev-footer">'+lk+'</div></div></div>',unsafe_allow_html=True)
 
 def render_grid(df):
     if df.empty:
@@ -430,15 +463,41 @@ def main():
     tot=len(f); con=len(f[f["category"].str.contains("Concerto",case=False,na=False)])
     fst=len(f[f["category"].str.contains("Festival",case=False,na=False)]); oth=tot-con-fst
     wpr=len(f[f["price_min"].str.len()>0]); hot=len(f[f["_rel"]==3])
+    # Ler tab activa via query param
+    _qp = st.query_params.get("tab", "todos")
     s1,s2,s3,s4,s5,s6=st.columns(6)
-    for col2,n,l in[(s1,tot,"Total"),(s2,con,"Concertos"),(s3,fst,"Festivais"),(s4,oth,"Outros"),(s5,wpr,"Com preços"),(s6,hot,"Destaque 🔥")]:
-        col2.markdown('<div class="sp"><div class="n">'+str(n)+'</div><div class="l">'+l+'</div></div>',unsafe_allow_html=True)
+    _stat_data = [(s1,tot,"Total","todos"),(s2,con,"Concertos","concertos"),(s3,fst,"Festivais","festivais"),(s4,oth,"Outros","outros"),(s5,wpr,"Com preços","todos"),(s6,hot,"Destaque 🔥","todos")]
+    for col2,n,l,tab_key in _stat_data:
+        _active = "border-color:var(--accent);" if _qp == tab_key else ""
+        col2.markdown(
+            '<a href="?tab=' + tab_key + '" style="text-decoration:none">' 
+            + '<div class="sp" style="' + _active + '">' 
+            + '<div class="n">' + str(n) + '</div>' 
+            + '<div class="l">' + l + '</div></div></a>',
+            unsafe_allow_html=True
+        )
     st.markdown("<br>",unsafe_allow_html=True)
-    t1,t2,t3,t4=st.tabs(["🎵 Todos ("+str(tot)+")","  🎤 Concertos ("+str(con)+")","  🎪 Festivais ("+str(fst)+")","  🎭 Outros ("+str(oth)+")"])
+    # Tab activa via query param (?tab=todos|concertos|festivais|outros)
+    _tab_map = {"todos": 0, "concertos": 1, "festivais": 2, "outros": 3}
+    _active_tab = _tab_map.get(st.query_params.get("tab", "todos"), 0)
+    t1,t2,t3,t4 = st.tabs([
+        "🎵 Todos (" + str(tot) + ")",
+        "  🎤 Concertos (" + str(con) + ")",
+        "  🎪 Festivais (" + str(fst) + ")",
+        "  🎭 Outros (" + str(oth) + ")"
+    ])
+    # Injectar JS para activar a tab correcta via query param
+    if _active_tab > 0:
+        st.markdown(
+            f'<script>window.addEventListener("load",function(){{' 
+            f'var tabs=window.parent.document.querySelectorAll("[data-baseweb=tab]");' 
+            f'if(tabs[{_active_tab}])tabs[{_active_tab}].click();}});</script>',
+            unsafe_allow_html=True
+        )
     with t1: render_grid(f)
-    with t2: render_grid(f[f["category"].str.contains("Concerto",case=False,na=False)])
-    with t3: render_grid(f[f["category"].str.contains("Festival",case=False,na=False)])
-    with t4: render_grid(f[~f["category"].str.contains("Concerto|Festival",case=False,na=False)])
+    with t2: render_grid(f[f["category"].str.contains("Concerto", case=False, na=False)])
+    with t3: render_grid(f[f["category"].str.contains("Festival", case=False, na=False)])
+    with t4: render_grid(f[~f["category"].str.contains("Concerto|Festival", case=False, na=False)])
 
     with nav[1]:
         _render_manual_tab()

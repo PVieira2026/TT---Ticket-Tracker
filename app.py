@@ -252,6 +252,14 @@ CSS = (
     ".add-field-label{font-size:.82rem;font-weight:600;color:var(--muted);"
     "  text-transform:uppercase;letter-spacing:.8px;margin:16px 0 6px;}"
 
+    "/* ── CSS Checkbox Hack for Prices Toggle ── */"
+    ".toggle-trigger{display:none!important;}"
+    ".extra-prices{display:none;}"
+    ".btn-hide{display:none;}"
+    ".toggle-trigger:checked ~ .extra-prices{display:block!important;}"
+    ".toggle-trigger:checked ~ .btn-show{display:none!important;}"
+    ".toggle-trigger:checked ~ .btn-hide{display:block!important;}"
+
     "/* ── Misc ── */"
     ".no-res{text-align:center;padding:60px 20px;color:var(--muted);}"
     ".ts{font-size:.72rem;color:var(--muted);text-align:right;margin-top:4px;margin-bottom:14px;}"
@@ -673,25 +681,20 @@ def render_card(row, card_idx=0):
 
         visible_lines = "".join(_pr_line(r) for r in prows[:VISIBLE])
         extra_lines   = "".join(_pr_line(r) for r in prows[VISIBLE:])
-        extra_block   = ""
-        ver_mais_btn  = ""
         if len(prows) > VISIBLE:
-            extra_block = f'<div id="{_uid}" style="display:none">{extra_lines}</div>'
             n_extra = len(prows) - VISIBLE
-            ver_mais_btn = (
-                f"<button class='ver-mais-btn' onclick=\"(function(b){{"
-                f"var el=document.getElementById('{_uid}');"
-                f"if(el.style.display==='none'){{"
-                f"el.style.display='block';"
-                f"b.textContent='▲ ver menos'}}"
-                f"else{{"
-                f"el.style.display='none';"
-                f"b.textContent='▼ +{n_extra} categorias'}}}}"
-                f")(this)\">▼ +{n_extra} categorias</button>"
-            )
-        pb = (f'<div class="ev-prices">'
-              f'<div class="ev-prices-hdr">🎫 Bilhetes</div>'
-              f'{visible_lines}{extra_block}{ver_mais_btn}</div>')
+            pb = (f'<div class="ev-prices">'
+                  f'<div class="ev-prices-hdr">🎫 Bilhetes</div>'
+                  f'<input type="checkbox" id="toggle-{_uid}" class="toggle-trigger">'
+                  f'{visible_lines}'
+                  f'<div class="extra-prices">{extra_lines}</div>'
+                  f'<label for="toggle-{_uid}" class="ver-mais-btn btn-show">▼ +{n_extra} categorias</label>'
+                  f'<label for="toggle-{_uid}" class="ver-mais-btn btn-hide">▲ ver menos</label>'
+                  f'</div>')
+        else:
+            pb = (f'<div class="ev-prices">'
+                  f'<div class="ev-prices-hdr">🎫 Bilhetes</div>'
+                  f'{visible_lines}</div>')
     else:
         pb = '<div class="ev-prices"><span class="no-price">Preços em breve</span></div>'
 
@@ -996,19 +999,22 @@ def main():
         unsafe_allow_html=True
     )
 
-    # ── PRIMARY ACTION BUTTONS (Centered) ─────────────────────────────────
+    # ── PRIMARY CONTROLS (Centered & Merged) ──────────────────────────────
     st.markdown("<br>", unsafe_allow_html=True)
-    _, _ab1, _ab2, _ = st.columns([2.2, 2.5, 2.5, 2.2])
-    with _ab1:
+    col1, col2, col3 = st.columns([2.5, 3.5, 4])
+    with col1:
         add_lbl = "✖ Fechar Formulário" if st.session_state['show_add'] else "➕ Adicionar Evento"
         if st.button(add_lbl, key="hero_add", type="primary", use_container_width=True):
             st.session_state['show_add'] = not st.session_state['show_add']
             st.rerun()
-    with _ab2:
-        if st.button("🔄 Forçar Actualização", key="hero_refresh", use_container_width=True):
+    with col2:
+        if st.button("🔄 Forçar Actualização do Sheet", key="hero_refresh", use_container_width=True):
             get_data(force=True)
             st.toast("✅ Dados actualizados!", icon="🔄")
             st.rerun()
+    with col3:
+        srch = st.text_input("", "", placeholder="🔍 Procurar Evento, Festival ou Concerto",
+                             label_visibility="collapsed", key="srch")
 
     # ── ADD FORM SECTION ──────────────────────────────────────────────────
     if st.session_state['show_add']:
@@ -1063,7 +1069,7 @@ def main():
         is_active = (_qp_tab == tab_key and (_qp_sort == sort_key if sort_key == "pop" else _qp_sort != "pop"))
         active_cls = " sp-active" if is_active else ""
         dest_url = f"?tab={tab_key}" + ("&sort=pop" if sort_key == "pop" else "")
-        click_action = f"window.parent.location.search='{dest_url}';"
+        click_action = f"try {{ window.parent.location.search='{dest_url}'; }} catch(e) {{ window.location.search='{dest_url}'; }}"
         p_cols[i].markdown(
             f'<div class="sp{active_cls}" onclick="{click_action}">'
             f'<div class="n">{num}</div>'
@@ -1073,17 +1079,6 @@ def main():
         )
 
     st.markdown("<br>", unsafe_allow_html=True)
-
-    # ── SEARCH BAR ────────────────────────────────────────────────────────
-    sc1, sc2 = st.columns([6, 1])
-    with sc1:
-        srch = st.text_input("", "", placeholder="🔍  Pesquisar artista ou festival...",
-                             label_visibility="collapsed", key="srch")
-    with sc2:
-        if st.button("🔄", use_container_width=True, key="srch_refresh",
-                     help="Forçar actualização do Sheet"):
-            get_data(force=True)
-            st.rerun()
 
     # Apply search to the active dataset
     if srch.strip():
@@ -1106,14 +1101,14 @@ def main():
         f"  🎭 Outros ({oth})"
     ])
 
-    # Activate correct tab via robust IIFE interval script
+    # Activate correct tab via robust IIFE interval script (targeting local document)
     if _active_tab > 0:
         st.markdown(
             f'<script>'
             f'(function() {{'
             f'  var count = 0;'
             f'  var interval = setInterval(function() {{'
-            f'    var tabs = window.parent.document.querySelectorAll("[data-baseweb=\'tab\']");'
+            f'    var tabs = document.querySelectorAll("[data-baseweb=\'tab\']");'
             f'    if (tabs && tabs[{_active_tab}]) {{'
             f'      tabs[{_active_tab}].click();'
             f'      clearInterval(interval);'

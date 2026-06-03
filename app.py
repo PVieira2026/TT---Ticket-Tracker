@@ -55,26 +55,26 @@ CSS = (
     "  pointer-events:none;"
     "}"
     ".tt-hero-inner{"
-    "  position:relative;z-index:1;padding:28px 40px;"
-    "  display:flex;align-items:center;gap:20px;"
+    "  position:relative;z-index:1;padding:36px 40px;"
+    "  display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:12px;"
     "}"
     ".tt-logo-mark{"
     "  width:56px;height:56px;border-radius:14px;flex-shrink:0;"
     "  background:linear-gradient(135deg,#FF5C35,#FF9A3C);"
     "  display:flex;align-items:center;justify-content:center;"
     "  font-size:1.7rem;box-shadow:0 8px 24px rgba(255,92,53,.4);"
-    "  margin-right:16px;"
+    "  margin:0;"
     "}"
-    ".tt-title-block{flex:1;min-width:0;}"
+    ".tt-title-block{min-width:0;}"
     ".tt-title{"
     "  font-family:'Outfit',sans-serif;font-weight:900;"
-    "  font-size:2rem;line-height:1;"
+    "  font-size:2.6rem;line-height:1.1;"
     "  background:linear-gradient(90deg,#FF9A3C 0%,#FF5C35 40%,#C084FC 80%,#818CF8 100%);"
     "  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;"
     "  margin:0 0 5px;letter-spacing:-1px;"
     "}"
     ".tt-sub{font-size:.87rem;color:rgba(240,235,248,.55);font-weight:400;margin:0;letter-spacing:.3px;}"
-    ".tt-tags{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}"
+    ".tt-tags{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:6px;}"
     ".tt-tag{"
     "  font-size:.68rem;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;"
     "  padding:3px 10px;border-radius:20px;border:1px solid;"
@@ -144,14 +144,17 @@ CSS = (
     ".sp .l{font-size:.68rem;color:var(--muted);margin-top:4px;text-transform:uppercase;letter-spacing:1px;}"
 
     "/* ── Event cards ── */"
+    ".ev-concerto{--c-accent:#1E6FFF;--c-accent-rgb:30,111,255;}"
+    ".ev-festival{--c-accent:#FF6B2B;--c-accent-rgb:255,107,43;}"
+    ".ev-evento{--c-accent:#8B5CF6;--c-accent-rgb:139,92,246;}"
     ".ev-card{"
     "  background:var(--card);border:1px solid var(--border);border-radius:16px;overflow:hidden;"
     "  transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease;"
     "  display:flex;flex-direction:column;height:100%;position:relative;"
     "}"
     ".ev-card:hover{"
-    "  transform:translateY(-4px);border-color:rgba(255,92,53,.5);"
-    "  box-shadow:0 12px 40px rgba(255,92,53,.15),0 2px 8px rgba(0,0,0,.4);"
+    "  transform:translateY(-4px);border-color:var(--c-accent)!important;"
+    "  box-shadow:0 12px 40px rgba(var(--c-accent-rgb),.25),0 2px 8px rgba(0,0,0,.4);"
     "}"
     ".ev-img-wrap{position:relative;overflow:hidden;flex-shrink:0;}"
     ".ev-img{width:100%;height:200px;object-fit:cover;display:block;transition:filter .3s,opacity .3s;}"
@@ -188,9 +191,9 @@ CSS = (
 
     "/* ── Card inner ── */"
     ".ev-ribbon{color:#fff;font-size:.68rem;font-weight:700;letter-spacing:.8px;padding:5px 12px;text-transform:uppercase;}"
-    ".r-concerto{background:linear-gradient(90deg,#3B82F6,#6366F1);}"
-    ".r-festival{background:linear-gradient(90deg,#FF5C35,#FF9A3C);}"
-    ".r-evento{background:linear-gradient(90deg,#8B5CF6,#C084FC);}"
+    ".r-concerto{background:#1E6FFF;}"
+    ".r-festival{background:#FF6B2B;}"
+    ".r-evento{background:#8B5CF6;}"
     ".hot-badge{background:rgba(255,154,60,.2);color:#FF9A3C;font-size:.62rem;font-weight:700;"
     "  padding:2px 8px;border-radius:20px;margin-left:6px;letter-spacing:.5px;"
     "  border:1px solid rgba(255,154,60,.4);}"
@@ -591,6 +594,15 @@ def render_card(row, card_idx=0):
     _MANUAL = {"manual","locked","manual-locked"}
     is_manual = status in _MANUAL or status.startswith("manual")
 
+    # Category CSS class color mapping
+    cat_lower = cat.lower()
+    if "festival" in cat_lower:
+        card_cat_cls = " ev-festival"
+    elif "concerto" in cat_lower:
+        card_cat_cls = " ev-concerto"
+    else:
+        card_cat_cls = " ev-evento"
+
     # Past event?
     past = is_past_event(d_start) if d_start else False
     past_cls = " past-card" if past else ""
@@ -615,9 +627,9 @@ def render_card(row, card_idx=0):
             soon_bit = f' · <span class="soon">em {du}d</span>'
         meta_html = f'<span>🎫 {plat_s(plat)}</span>{soon_bit}'
 
-    # Image block
+    # Image block with safe onerror fallback image to prevent UIs glitches
     if img:
-        img_tag = f'<img class="ev-img" src="{img}" onerror="this.parentElement.innerHTML=\'<div class=\\"ev-noimg\\">🎵</div>\'">'
+        img_tag = f'<img class="ev-img" src="{img}" onerror="this.onerror=null;this.src=\'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?q=80&w=400\';">'
     else:
         img_tag = '<div class="ev-noimg">🎵</div>'
     img_block = (f'<a href="{url}" target="_blank" rel="noopener" class="ev-img-link">{img_tag}</a>'
@@ -643,7 +655,7 @@ def render_card(row, card_idx=0):
     date_row = (f'<div class="ev-date-row {date_cls}">'
                 f'<span>{date_icon}</span><span>{date_display}</span></div>')
 
-    # Prices block with working + categorias toggle
+    # Prices block with working + categorias toggle (fixed single quotes and element selectors)
     prows = price_rows(tj, td)
     if prows:
         import hashlib as _hlib
@@ -667,14 +679,15 @@ def render_card(row, card_idx=0):
             extra_block = f'<div id="{_uid}" style="display:none">{extra_lines}</div>'
             n_extra = len(prows) - VISIBLE
             ver_mais_btn = (
-                f'<button class="ver-mais-btn" onclick="(function(b){{'
-                f'var el=document.getElementById(&quot;{_uid}&quot;);'
-                f'if(el.style.display===&quot;none&quot;){{'
-                f'el.style.display=&quot;block&quot;;'
-                f'b.textContent=&quot;\u25b2 ver menos&quot;}}'
-                f'else{{el.style.display=&quot;none&quot;;'
-                f'b.textContent=&quot;\u25bc +{n_extra} categorias&quot;}}}}'
-                f')(this)">\u25bc +{n_extra} categorias</button>'
+                f"<button class='ver-mais-btn' onclick=\"(function(b){{"
+                f"var el=document.getElementById('{_uid}');"
+                f"if(el.style.display==='none'){{"
+                f"el.style.display='block';"
+                f"b.textContent='▲ ver menos'}}"
+                f"else{{"
+                f"el.style.display='none';"
+                f"b.textContent='▼ +{n_extra} categorias'}}}}"
+                f")(this)\">▼ +{n_extra} categorias</button>"
             )
         pb = (f'<div class="ev-prices">'
               f'<div class="ev-prices-hdr">🎫 Bilhetes</div>'
@@ -686,9 +699,9 @@ def render_card(row, card_idx=0):
     lk = f'<a href="{url}" target="_blank" class="src-link">ver fonte ↗</a>' if url else ""
     footer = f'<div class="ev-footer">{lk}</div>'
 
-    # Render card
+    # Render card (includes dynamic category class)
     st.markdown(
-        f'<div class="ev-card{past_cls}">'
+        f'<div class="ev-card{card_cat_cls}{past_cls}">'
         f'<div class="ev-img-wrap">{img_block}{stamp}</div>'
         f'{rb}'
         f'<div class="ev-body">'
@@ -842,7 +855,7 @@ def _render_add_form():
     with ui1:
         ev_url = st.text_input('URL do evento', value=_prefill_url, key='mm_u')
     with ui2:
-        ev_img = st.text_input('URL da imagem (opcional)',
+        ev_img = st.text_input('URL da imagem',
                                value=st.session_state.get('mm_img_v',''),
                                placeholder='https://...', key='mm_img')
     if ev_img:
@@ -850,7 +863,7 @@ def _render_add_form():
         except: st.markdown(f'`{ev_img[:80]}`')
 
     # ── Row 5: Prices ─────────────────────────────────────────────────────
-    st.markdown('<div class="add-field-label">💰 Preços (opcional)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="add-field-label">💰 Preços</div>', unsafe_allow_html=True)
     pr1, pr2, pr3 = st.columns([1, 1, 2])
     with pr1:
         pmin = st.text_input('Preço mínimo (€)', '', placeholder='25', key='mm_pn')
@@ -983,9 +996,9 @@ def main():
         unsafe_allow_html=True
     )
 
-    # ── PRIMARY ACTION BUTTONS ────────────────────────────────────────────
+    # ── PRIMARY ACTION BUTTONS (Centered) ─────────────────────────────────
     st.markdown("<br>", unsafe_allow_html=True)
-    _ab1, _ab2, _ab_sp = st.columns([1.5, 1.6, 5])
+    _, _ab1, _ab2, _ = st.columns([2.2, 2.5, 2.5, 2.2])
     with _ab1:
         add_lbl = "✖ Fechar Formulário" if st.session_state['show_add'] else "➕ Adicionar Evento"
         if st.button(add_lbl, key="hero_add", type="primary", use_container_width=True):
@@ -1022,41 +1035,40 @@ def main():
     _qp_tab  = st.query_params.get("tab",  "todos")
     _qp_sort = st.query_params.get("sort", "data")
 
-    # Apply sort to full dataset
+    # Apply sort/filter to full dataset
     f = df_all.copy()
     if _qp_sort == "pop":
-        f = f.sort_values(["_rel","_dt"], ascending=[False,True]).reset_index(drop=True)
+        # Keep ONLY highlight events (with fire / relevance == 3)
+        f = f[f["_rel"] == 3].reset_index(drop=True)
     else:
         f = f.sort_values("_dt", na_position="last").reset_index(drop=True)
 
-    # Stats
-    tot = len(f)
-    con = len(f[f["category"].str.contains("Concerto", case=False, na=False)])
-    fst = len(f[f["category"].str.contains("Festival", case=False, na=False)])
-    oth = tot - con - fst
-    hot = len(f[f["_rel"] == 3])
+    # Static full dataset counts to display on pills
+    full_tot = len(df_all)
+    full_con = len(df_all[df_all["category"].str.contains("Concerto", case=False, na=False)])
+    full_fst = len(df_all[df_all["category"].str.contains("Festival", case=False, na=False)])
+    full_oth = full_tot - full_con - full_fst
+    full_hot = len(df_all[df_all["_rel"] == 3])
 
     # ── STAT PILLS ────────────────────────────────────────────────────────
     pill_data = [
-        ("Total",         str(tot), "todos",     "data"),
-        ("Concertos",     str(con), "concertos",  "data"),
-        ("Festivais",     str(fst), "festivais",  "data"),
-        ("Outros",        str(oth), "outros",     "data"),
-        ("Destaque 🔥",   str(hot), "todos",      "pop"),
+        ("Total",         str(full_tot), "todos",     "data"),
+        ("Concertos",     str(full_con), "concertos",  "data"),
+        ("Festivais",     str(full_fst), "festivais",  "data"),
+        ("Outros",        str(full_oth), "outros",     "data"),
+        ("Destaque 🔥",   str(full_hot), "todos",      "pop"),
     ]
     p_cols = st.columns(5)
     for i, (label, num, tab_key, sort_key) in enumerate(pill_data):
-        is_active = (_qp_tab == tab_key and
-                     (sort_key == "data" or _qp_sort == sort_key))
-        active_style = ("border-color:rgba(255,92,53,.7);"
-                        "box-shadow:0 4px 20px rgba(255,92,53,.2);") if is_active else ""
-        href = f"?tab={tab_key}" + ("&sort=pop" if sort_key == "pop" else "")
+        is_active = (_qp_tab == tab_key and (_qp_sort == sort_key if sort_key == "pop" else _qp_sort != "pop"))
+        active_cls = " sp-active" if is_active else ""
+        dest_url = f"?tab={tab_key}" + ("&sort=pop" if sort_key == "pop" else "")
+        click_action = f"window.parent.location.search='{dest_url}';"
         p_cols[i].markdown(
-            f'<a href="{href}" style="text-decoration:none">'
-            f'<div class="sp" style="{active_style}">'
+            f'<div class="sp{active_cls}" onclick="{click_action}">'
             f'<div class="n">{num}</div>'
             f'<div class="l">{label}</div>'
-            f'</div></a>',
+            f'</div>',
             unsafe_allow_html=True
         )
 
@@ -1073,13 +1085,15 @@ def main():
             get_data(force=True)
             st.rerun()
 
-    # Apply search
+    # Apply search to the active dataset
     if srch.strip():
         f = f[f["name"].str.contains(srch.strip(), case=False, na=False)]
-        tot = len(f)
-        con = len(f[f["category"].str.contains("Concerto", case=False, na=False)])
-        fst = len(f[f["category"].str.contains("Festival", case=False, na=False)])
-        oth = tot - con - fst
+
+    # Dynamic counts for tab headers based on the current filtered dataset f
+    tot = len(f)
+    con = len(f[f["category"].str.contains("Concerto", case=False, na=False)])
+    fst = len(f[f["category"].str.contains("Festival", case=False, na=False)])
+    oth = tot - con - fst
 
     # ── TABS ──────────────────────────────────────────────────────────────
     _tab_map   = {"todos": 0, "concertos": 1, "festivais": 2, "outros": 3}
@@ -1092,14 +1106,22 @@ def main():
         f"  🎭 Outros ({oth})"
     ])
 
-    # Activate correct tab via JS
+    # Activate correct tab via robust IIFE interval script
     if _active_tab > 0:
         st.markdown(
-            f'<script>window.addEventListener("load",function(){{'
-            f'setTimeout(function(){{'
-            f'var tabs=window.parent.document.querySelectorAll("[data-baseweb=tab]");'
-            f'if(tabs[{_active_tab}])tabs[{_active_tab}].click();'
-            f'}},350);}});</script>',
+            f'<script>'
+            f'(function() {{'
+            f'  var count = 0;'
+            f'  var interval = setInterval(function() {{'
+            f'    var tabs = window.parent.document.querySelectorAll("[data-baseweb=\'tab\']");'
+            f'    if (tabs && tabs[{_active_tab}]) {{'
+            f'      tabs[{_active_tab}].click();'
+            f'      clearInterval(interval);'
+            f'    }}'
+            f'    if (++count > 50) clearInterval(interval);'
+            f'  }}, 50);'
+            f'}})();'
+            f'</script>',
             unsafe_allow_html=True
         )
 

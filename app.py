@@ -967,49 +967,37 @@ def main():
     oth = tot - con - fst
 
     # ── TABS ──────────────────────────────────────────────────────────────
-    _tab_map   = {"todos": 0, "concertos": 1, "festivais": 2, "outros": 3}
-    _active_tab = _tab_map.get(_qp_tab, 0)
-
-    t1, t2, t3, t4 = st.tabs([
-        f"🎵 Todos ({tot})",
-        f"  🎤 Concertos ({con})",
-        f"  🎪 Festivais ({fst})",
-        f"  🎭 Outros ({oth})"
-    ])
-
-    # Activate correct tab via robust requestAnimationFrame + retry script
-    if _active_tab > 0:
-        st.markdown(
-            f'<script>'
-            f'(function() {{'
-            f'  function tryClickTab(idx, maxAttempts) {{'
-            f'    var count = 0;'
-            f'    function attempt() {{'
-            f'      count++;'
-            f'      var tabs = document.querySelectorAll("[data-baseweb=\"tab\"]");'
-            f'      if (!tabs || tabs.length === 0) {{'
-            f'        try {{ tabs = window.parent.document.querySelectorAll("[data-baseweb=\"tab\"]"); }} catch(e) {{}}'
-            f'      }}'
-            f'      if (tabs && tabs[idx]) {{'
-            f'        tabs[idx].click();'
-            f'        return;'
-            f'      }}'
-            f'      if (count < maxAttempts) {{'
-            f'        setTimeout(attempt, 100);'
-            f'      }}'
-            f'    }}'
-            f'    requestAnimationFrame(attempt);'
-            f'  }}'
-            f'  tryClickTab({_active_tab}, 100);'
-            f'}})();'
-            f'</script>',
-            unsafe_allow_html=True
+    # ── VISUAL TAB BAR (pure HTML — no JS needed) ───────────────────────
+    _tab_defs = [
+        ("todos",     "data",  f"🎵 Todos ({tot})"),
+        ("concertos", "data",  f"🎤 Concertos ({con})"),
+        ("festivais", "data",  f"🎪 Festivais ({fst})"),
+        ("outros",    "data",  f"🎭 Outros ({oth})"),
+    ]
+    tab_bar_html = '<div style="display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:18px;">'
+    for tk, sk, label in _tab_defs:
+        is_a = (_qp_tab == tk and _qp_sort != "pop")
+        dest = f"?tab={tk}"
+        act_style = "border-top:2px solid var(--accent);background:var(--card);color:#fff;" if is_a else "border-top:2px solid transparent;background:transparent;color:var(--muted);"
+        tab_onclick = f"try{{window.parent.location.search='{dest}';}}catch(e){{window.location.search='{dest}';}}"
+        tab_bar_html += (
+            f'<div onclick="{tab_onclick}" style="cursor:pointer;padding:10px 20px;'
+            f'font-weight:600;font-size:.88rem;border-radius:8px 8px 0 0;{act_style}'
+            f'font-family:Inter,sans-serif;white-space:nowrap;border-left:none;border-right:none;border-bottom:none;">'
+            f'{label}</div>'
         )
+    tab_bar_html += '</div>'
+    st.markdown(tab_bar_html, unsafe_allow_html=True)
 
-    with t1: render_grid(f, base_idx=0)
-    with t2: render_grid(f[f["category"].str.contains("Concerto", case=False, na=False)], base_idx=1000)
-    with t3: render_grid(f[f["category"].str.contains("Festival", case=False, na=False)], base_idx=2000)
-    with t4: render_grid(f[~f["category"].str.contains("Concerto|Festival", case=False, na=False)], base_idx=3000)
+    # ── CONDITIONAL CONTENT RENDER (server-side, 100% reliable) ─────────
+    if _qp_tab == "concertos":
+        render_grid(f[f["category"].str.contains("Concerto", case=False, na=False)], base_idx=1000)
+    elif _qp_tab == "festivais":
+        render_grid(f[f["category"].str.contains("Festival", case=False, na=False)], base_idx=2000)
+    elif _qp_tab == "outros":
+        render_grid(f[~f["category"].str.contains("Concerto|Festival", case=False, na=False)], base_idx=3000)
+    else:
+        render_grid(f, base_idx=0)
 
 
 if __name__ == "__main__":

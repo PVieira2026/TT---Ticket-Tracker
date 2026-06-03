@@ -927,16 +927,15 @@ def main():
         ("Concertos",     str(full_con), 1),
         ("Festivais",     str(full_fst), 2),
         ("Outros",        str(full_oth), 3),
-        ("Destaque 🔥",   str(full_hot), 0),
+        ("Destaque \U0001f525",   str(full_hot), 0),
     ]
     p_cols = st.columns(5)
     for i, (label, num, tab_idx) in enumerate(pill_data):
-        # Direct JS click on the Streamlit tab — no URL change, no reload
-        _sel = '[data-baseweb=\'tab\']'
+        # Use dispatchEvent — .click() alone doesn't trigger React synthetic events
         click_action = (
             f"(function(){{"
-            f"var t=document.querySelectorAll('{_sel}');"
-            f"if(t&&t[{tab_idx}])t[{tab_idx}].click();"
+            f"var tabs=document.querySelectorAll('[data-baseweb=\'tab\']');"
+            f"if(tabs&&tabs[{tab_idx}]){{tabs[{tab_idx}].dispatchEvent(new MouseEvent('click',{{bubbles:true,cancelable:true,view:window}}));}}"
             f"document.querySelectorAll('.sp').forEach(function(p){{p.classList.remove('sp-active');}});"
             f"this.classList.add('sp-active');"
             f"}}).call(this)"

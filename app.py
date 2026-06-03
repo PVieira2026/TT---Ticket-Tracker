@@ -910,17 +910,8 @@ def main():
                + f" · {len(df_all)} eventos")
     st.markdown(f'<div class="ts">{ts_info}</div>', unsafe_allow_html=True)
 
-    # Read query params for tab + sort
-    _qp_tab  = st.query_params.get("tab",  "todos")
-    _qp_sort = st.query_params.get("sort", "data")
-
     # Apply sort/filter to full dataset
-    f = df_all.copy()
-    if _qp_sort == "pop":
-        # Keep ONLY highlight events (with fire / relevance == 3)
-        f = f[f["_rel"] == 3].reset_index(drop=True)
-    else:
-        f = f.sort_values("_dt", na_position="last").reset_index(drop=True)
+    f = df_all.sort_values("_dt", na_position="last").reset_index(drop=True)
 
     # Static full dataset counts to display on pills
     full_tot = len(df_all)
@@ -930,24 +921,28 @@ def main():
     full_hot = len(df_all[df_all["_rel"] == 3])
 
     # ── STAT PILLS ────────────────────────────────────────────────────────
+    # Tab index per pill (matches st.tabs order: 0=Todos, 1=Concertos, 2=Festivais, 3=Outros)
     pill_data = [
-        ("Total",         str(full_tot), "todos",     "data"),
-        ("Concertos",     str(full_con), "concertos",  "data"),
-        ("Festivais",     str(full_fst), "festivais",  "data"),
-        ("Outros",        str(full_oth), "outros",     "data"),
-        ("Destaque 🔥",   str(full_hot), "todos",      "pop"),
+        ("Total",         str(full_tot), 0),
+        ("Concertos",     str(full_con), 1),
+        ("Festivais",     str(full_fst), 2),
+        ("Outros",        str(full_oth), 3),
+        ("Destaque 🔥",   str(full_hot), 0),
     ]
     p_cols = st.columns(5)
-    for i, (label, num, tab_key, sort_key) in enumerate(pill_data):
-        is_active = (_qp_tab == tab_key and (_qp_sort == sort_key if sort_key == "pop" else _qp_sort != "pop"))
-        active_cls = " sp-active" if is_active else ""
-        dest_url = f"?tab={tab_key}" + ("&sort=pop" if sort_key == "pop" else "")
+    for i, (label, num, tab_idx) in enumerate(pill_data):
+        # Direct JS click on the Streamlit tab — no URL change, no reload
+        _sel = '[data-baseweb=\'tab\']'
         click_action = (
-            f"try {{ window.parent.location.search='{dest_url}'; }}"
-            f" catch(e) {{ window.location.search='{dest_url}'; }}"
+            f"(function(){{"
+            f"var t=document.querySelectorAll('{_sel}');"
+            f"if(t&&t[{tab_idx}])t[{tab_idx}].click();"
+            f"document.querySelectorAll('.sp').forEach(function(p){{p.classList.remove('sp-active');}});"
+            f"this.classList.add('sp-active');"
+            f"}}).call(this)"
         )
         p_cols[i].markdown(
-            f'<div class="sp{active_cls}" onclick="{click_action}">'
+            f'<div class="sp" onclick="{click_action}">'
             f'<div class="n">{num}</div>'
             f'<div class="l">{label}</div>'
             f'</div>',
@@ -967,37 +962,17 @@ def main():
     oth = tot - con - fst
 
     # ── TABS ──────────────────────────────────────────────────────────────
-    # ── VISUAL TAB BAR (pure HTML — no JS needed) ───────────────────────
-    _tab_defs = [
-        ("todos",     "data",  f"🎵 Todos ({tot})"),
-        ("concertos", "data",  f"🎤 Concertos ({con})"),
-        ("festivais", "data",  f"🎪 Festivais ({fst})"),
-        ("outros",    "data",  f"🎭 Outros ({oth})"),
-    ]
-    tab_bar_html = '<div style="display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:18px;">'
-    for tk, sk, label in _tab_defs:
-        is_a = (_qp_tab == tk and _qp_sort != "pop")
-        dest = f"?tab={tk}"
-        act_style = "border-top:2px solid var(--accent);background:var(--card);color:#fff;" if is_a else "border-top:2px solid transparent;background:transparent;color:var(--muted);"
-        tab_onclick = f"try{{window.parent.location.search='{dest}';}}catch(e){{window.location.search='{dest}';}}"
-        tab_bar_html += (
-            f'<div onclick="{tab_onclick}" style="cursor:pointer;padding:10px 20px;'
-            f'font-weight:600;font-size:.88rem;border-radius:8px 8px 0 0;{act_style}'
-            f'font-family:Inter,sans-serif;white-space:nowrap;border-left:none;border-right:none;border-bottom:none;">'
-            f'{label}</div>'
-        )
-    tab_bar_html += '</div>'
-    st.markdown(tab_bar_html, unsafe_allow_html=True)
+    t1, t2, t3, t4 = st.tabs([
+        f"🎵 Todos ({tot})",
+        f"  🎤 Concertos ({con})",
+        f"  🎪 Festivais ({fst})",
+        f"  🎭 Outros ({oth})"
+    ])
 
-    # ── CONDITIONAL CONTENT RENDER (server-side, 100% reliable) ─────────
-    if _qp_tab == "concertos":
-        render_grid(f[f["category"].str.contains("Concerto", case=False, na=False)], base_idx=1000)
-    elif _qp_tab == "festivais":
-        render_grid(f[f["category"].str.contains("Festival", case=False, na=False)], base_idx=2000)
-    elif _qp_tab == "outros":
-        render_grid(f[~f["category"].str.contains("Concerto|Festival", case=False, na=False)], base_idx=3000)
-    else:
-        render_grid(f, base_idx=0)
+    with t1: render_grid(f, base_idx=0)
+    with t2: render_grid(f[f["category"].str.contains("Concerto", case=False, na=False)], base_idx=1000)
+    with t3: render_grid(f[f["category"].str.contains("Festival", case=False, na=False)], base_idx=2000)
+    with t4: render_grid(f[~f["category"].str.contains("Concerto|Festival", case=False, na=False)], base_idx=3000)
 
 
 if __name__ == "__main__":

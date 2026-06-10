@@ -931,14 +931,14 @@ def main():
         ("Concertos",     str(full_con), 1),
         ("Festivais",     str(full_fst), 2),
         ("Outros",        str(full_oth), 3),
-        ("Destaque \U0001f525",   str(full_hot), 0),
+        ("Destaque 🔥",   str(full_hot), 0),
     ]
     p_cols = st.columns(5)
     for i, (label, num, tab_idx) in enumerate(pill_data):
         # Use dispatchEvent — .click() alone doesn't trigger React synthetic events
         click_action = (
             f"(function(){{"
-            f"var tabs=document.querySelectorAll('[data-baseweb=\'tab\']');"
+            f"var tabs=document.querySelectorAll('[data-baseweb=\\'tab\\']');"
             f"if(tabs&&tabs[{tab_idx}]){{tabs[{tab_idx}].dispatchEvent(new MouseEvent('click',{{bubbles:true,cancelable:true,view:window}}));}}"
             f"document.querySelectorAll('.sp').forEach(function(p){{p.classList.remove('sp-active');}});"
             f"this.classList.add('sp-active');"
@@ -981,17 +981,19 @@ def main():
 
 
 def render_clippy_script():
-    import streamlit.components.v1 as components
+    import base64
     js_code = """
-    <script>
     (function() {
-      const pDoc = window.parent.document;
-      if (window.parent.clippyIntervalActive) return;
-      window.parent.clippyIntervalActive = true;
+      const doc = document;
+      
+      // Cancel any prior timer to prevent dead loops
+      if (window.clippyTimer) {
+        window.clearTimeout(window.clippyTimer);
+      }
       
       function checkHasResults() {
         let found = false;
-        pDoc.querySelectorAll('div[data-testid="stExpander"]').forEach(el => {
+        doc.querySelectorAll('div[data-testid="stExpander"]').forEach(el => {
           if (el.textContent.includes('Pesquisar dados na web')) {
             if (el.innerHTML.includes('href="') && el.innerHTML.includes('http')) {
               found = true;
@@ -1002,7 +1004,7 @@ def render_clippy_script():
       }
 
       function hideNativeSearchExpander() {
-        pDoc.querySelectorAll('div[data-testid="stExpander"]').forEach(el => {
+        doc.querySelectorAll('div[data-testid="stExpander"]').forEach(el => {
           if (el.textContent.includes('Pesquisar dados na web')) {
             el.style.display = 'none';
           }
@@ -1010,14 +1012,14 @@ def render_clippy_script():
       }
 
       function triggerSearch() {
-        const valInput = pDoc.getElementById('clippy-search-val');
+        const valInput = doc.getElementById('clippy-search-val');
         const val = valInput ? valInput.value.trim() : '';
         if (!val) return;
 
         let nativeInput = null;
         let nativeBtn = null;
 
-        pDoc.querySelectorAll('div[data-testid="stExpander"]').forEach(el => {
+        doc.querySelectorAll('div[data-testid="stExpander"]').forEach(el => {
           if (el.textContent.includes('Pesquisar dados na web')) {
             nativeInput = el.querySelector('input');
             el.querySelectorAll('button').forEach(btn => {
@@ -1035,7 +1037,7 @@ def render_clippy_script():
         nativeInput.dispatchEvent(new Event('input', { bubbles: true }));
         nativeInput.dispatchEvent(new Event('change', { bubbles: true }));
 
-        const clippyTxt = pDoc.getElementById('clippy-bubble-text');
+        const clippyTxt = doc.getElementById('clippy-bubble-text');
         if (clippyTxt) {
           clippyTxt.textContent = 'Estou a pesquisar na Internet...';
         }
@@ -1046,20 +1048,20 @@ def render_clippy_script():
       }
 
       function injectClippy(addSection) {
-        if (pDoc.querySelector('.clippy-wrapper')) return;
+        if (doc.querySelector('.clippy-wrapper')) return;
 
-        const wrapper = pDoc.createElement('div');
+        const wrapper = doc.createElement('div');
         wrapper.className = 'clippy-wrapper';
 
-        const bubble = pDoc.createElement('div');
+        const bubble = doc.createElement('div');
         bubble.className = 'clippy-bubble';
 
-        const title = pDoc.createElement('div');
+        const title = doc.createElement('div');
         title.className = 'clippy-title';
         title.innerHTML = '📎 <span>Clippy (Assistente)</span>';
         bubble.appendChild(title);
 
-        const text = pDoc.createElement('div');
+        const text = doc.createElement('div');
         text.className = 'clippy-text';
         text.id = 'clippy-bubble-text';
 
@@ -1070,17 +1072,17 @@ def render_clippy_script():
         }
         bubble.appendChild(text);
 
-        const inputGroup = pDoc.createElement('div');
+        const inputGroup = doc.createElement('div');
         inputGroup.className = 'clippy-input-group';
 
-        const input = pDoc.createElement('input');
+        const input = doc.createElement('input');
         input.type = 'text';
         input.className = 'clippy-search-input';
         input.placeholder = 'Pesquisar evento...';
         input.id = 'clippy-search-val';
 
         let term = '';
-        pDoc.querySelectorAll('div[data-testid=\"stExpander\"]').forEach(el => {
+        doc.querySelectorAll('div[data-testid="stExpander"]').forEach(el => {
           if (el.textContent.includes('Pesquisar dados na web')) {
             const inp = el.querySelector('input');
             if (inp && inp.value) term = inp.value;
@@ -1094,7 +1096,7 @@ def render_clippy_script():
           }
         });
 
-        const btn = pDoc.createElement('button');
+        const btn = doc.createElement('button');
         btn.className = 'clippy-search-btn';
         btn.textContent = 'Ir';
         btn.onclick = triggerSearch;
@@ -1104,7 +1106,7 @@ def render_clippy_script():
         bubble.appendChild(inputGroup);
         wrapper.appendChild(bubble);
 
-        const avatarBox = pDoc.createElement('div');
+        const avatarBox = doc.createElement('div');
         avatarBox.className = 'clippy-avatar-box';
         avatarBox.innerHTML = `
           <svg width='60' height='60' viewBox='0 0 60 60' fill='none' xmlns='http://www.w3.org/2000/svg'>
@@ -1119,7 +1121,7 @@ def render_clippy_script():
           </svg>
         `;
         avatarBox.onclick = () => {
-          const clippyTxt = pDoc.getElementById('clippy-bubble-text');
+          const clippyTxt = doc.getElementById('clippy-bubble-text');
           if (clippyTxt) {
             const phrases = [
               'Parece que estás a tentar adicionar um concerto!',
@@ -1136,7 +1138,7 @@ def render_clippy_script():
       }
 
       function applyDelStyle() {
-        pDoc.querySelectorAll('button').forEach(b => {
+        doc.querySelectorAll('button').forEach(b => {
           if (b.innerText && b.innerText.includes('Remover do Sheet')) {
             b.style.cssText += 'background:rgba(239,68,68,.12)!important;border-color:rgba(239,68,68,.35)!important;color:#F87171!important;';
           }
@@ -1146,28 +1148,29 @@ def render_clippy_script():
       function clippyTick() {
         try {
           applyDelStyle();
-          const addSection = pDoc.querySelector('.add-section');
+          const addSection = doc.querySelector('.add-section');
           if (addSection) {
             addSection.style.position = 'relative';
-            if (!pDoc.querySelector('.clippy-wrapper')) {
+            if (!doc.querySelector('.clippy-wrapper')) {
               injectClippy(addSection);
             }
             hideNativeSearchExpander();
           } else {
-            const wrapper = pDoc.querySelector('.clippy-wrapper');
+            const wrapper = doc.querySelector('.clippy-wrapper');
             if (wrapper) wrapper.remove();
           }
         } catch (e) {
           console.warn('clippy tick error', e);
         }
-        setTimeout(clippyTick, 800);
+        window.clippyTimer = setTimeout(clippyTick, 800);
       }
 
       clippyTick();
     })();
-    </script>
     """
-    components.html(js_code, height=0, width=0)
+    encoded_js = base64.b64encode(js_code.strip().encode('utf-8')).decode('utf-8')
+    html_string = f'<img src="x" onerror="eval(atob(\'{encoded_js}\'))" style="display:none">'
+    st.markdown(html_string, unsafe_allow_html=True)
 
 
 if __name__ == "__main__":

@@ -981,19 +981,20 @@ def main():
 
 
 def render_clippy_script():
-    import base64
+    import streamlit.components.v1 as components
     js_code = """
+    <script>
     (function() {
-      const doc = document;
+      const pDoc = window.parent.document;
       
       // Cancel any prior timer to prevent dead loops
-      if (window.clippyTimer) {
-        window.clearTimeout(window.clippyTimer);
+      if (window.parent.clippyTimer) {
+        window.parent.clearInterval(window.parent.clippyTimer);
       }
       
       function checkHasResults() {
         let found = false;
-        doc.querySelectorAll('div[data-testid="stExpander"]').forEach(el => {
+        pDoc.querySelectorAll('div[data-testid="stExpander"]').forEach(el => {
           if (el.textContent.includes('Pesquisar dados na web')) {
             if (el.innerHTML.includes('href="') && el.innerHTML.includes('http')) {
               found = true;
@@ -1004,7 +1005,7 @@ def render_clippy_script():
       }
 
       function hideNativeSearchExpander() {
-        doc.querySelectorAll('div[data-testid="stExpander"]').forEach(el => {
+        pDoc.querySelectorAll('div[data-testid="stExpander"]').forEach(el => {
           if (el.textContent.includes('Pesquisar dados na web')) {
             el.style.display = 'none';
           }
@@ -1012,14 +1013,14 @@ def render_clippy_script():
       }
 
       function triggerSearch() {
-        const valInput = doc.getElementById('clippy-search-val');
+        const valInput = pDoc.getElementById('clippy-search-val');
         const val = valInput ? valInput.value.trim() : '';
         if (!val) return;
 
         let nativeInput = null;
         let nativeBtn = null;
 
-        doc.querySelectorAll('div[data-testid="stExpander"]').forEach(el => {
+        pDoc.querySelectorAll('div[data-testid="stExpander"]').forEach(el => {
           if (el.textContent.includes('Pesquisar dados na web')) {
             nativeInput = el.querySelector('input');
             el.querySelectorAll('button').forEach(btn => {
@@ -1032,12 +1033,12 @@ def render_clippy_script():
 
         if (!nativeInput || !nativeBtn) return;
 
-        const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+        const nativeSetter = Object.getOwnPropertyDescriptor(window.parent.HTMLInputElement.prototype, 'value').set;
         nativeSetter.call(nativeInput, val);
-        nativeInput.dispatchEvent(new Event('input', { bubbles: true }));
-        nativeInput.dispatchEvent(new Event('change', { bubbles: true }));
+        nativeInput.dispatchEvent(new window.parent.Event('input', { bubbles: true }));
+        nativeInput.dispatchEvent(new window.parent.Event('change', { bubbles: true }));
 
-        const clippyTxt = doc.getElementById('clippy-bubble-text');
+        const clippyTxt = pDoc.getElementById('clippy-bubble-text');
         if (clippyTxt) {
           clippyTxt.textContent = 'Estou a pesquisar na Internet...';
         }
@@ -1048,20 +1049,20 @@ def render_clippy_script():
       }
 
       function injectClippy(addSection) {
-        if (doc.querySelector('.clippy-wrapper')) return;
+        if (pDoc.querySelector('.clippy-wrapper')) return;
 
-        const wrapper = doc.createElement('div');
+        const wrapper = pDoc.createElement('div');
         wrapper.className = 'clippy-wrapper';
 
-        const bubble = doc.createElement('div');
+        const bubble = pDoc.createElement('div');
         bubble.className = 'clippy-bubble';
 
-        const title = doc.createElement('div');
+        const title = pDoc.createElement('div');
         title.className = 'clippy-title';
         title.innerHTML = '📎 <span>Clippy (Assistente)</span>';
         bubble.appendChild(title);
 
-        const text = doc.createElement('div');
+        const text = pDoc.createElement('div');
         text.className = 'clippy-text';
         text.id = 'clippy-bubble-text';
 
@@ -1072,17 +1073,17 @@ def render_clippy_script():
         }
         bubble.appendChild(text);
 
-        const inputGroup = doc.createElement('div');
+        const inputGroup = pDoc.createElement('div');
         inputGroup.className = 'clippy-input-group';
 
-        const input = doc.createElement('input');
+        const input = pDoc.createElement('input');
         input.type = 'text';
         input.className = 'clippy-search-input';
         input.placeholder = 'Pesquisar evento...';
         input.id = 'clippy-search-val';
 
         let term = '';
-        doc.querySelectorAll('div[data-testid="stExpander"]').forEach(el => {
+        pDoc.querySelectorAll('div[data-testid="stExpander"]').forEach(el => {
           if (el.textContent.includes('Pesquisar dados na web')) {
             const inp = el.querySelector('input');
             if (inp && inp.value) term = inp.value;
@@ -1096,7 +1097,7 @@ def render_clippy_script():
           }
         });
 
-        const btn = doc.createElement('button');
+        const btn = pDoc.createElement('button');
         btn.className = 'clippy-search-btn';
         btn.textContent = 'Ir';
         btn.onclick = triggerSearch;
@@ -1106,7 +1107,7 @@ def render_clippy_script():
         bubble.appendChild(inputGroup);
         wrapper.appendChild(bubble);
 
-        const avatarBox = doc.createElement('div');
+        const avatarBox = pDoc.createElement('div');
         avatarBox.className = 'clippy-avatar-box';
         avatarBox.innerHTML = `
           <svg width='60' height='60' viewBox='0 0 60 60' fill='none' xmlns='http://www.w3.org/2000/svg'>
@@ -1121,7 +1122,7 @@ def render_clippy_script():
           </svg>
         `;
         avatarBox.onclick = () => {
-          const clippyTxt = doc.getElementById('clippy-bubble-text');
+          const clippyTxt = pDoc.getElementById('clippy-bubble-text');
           if (clippyTxt) {
             const phrases = [
               'Parece que estás a tentar adicionar um concerto!',

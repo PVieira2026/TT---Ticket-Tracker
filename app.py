@@ -154,7 +154,7 @@ CSS = (
     ".clippy-avatar-box{animation:clippy-float 3s ease-in-out infinite;cursor:pointer;width:65px;height:65px;display:flex;align-items:center;justify-content:center;}"
     "@keyframes clippy-float{0%,100%{transform:translateY(0);}50%{transform:translateY(-5px);}}"
     "</style>"
-    "<script>"
+    "<script id='clippy-js-script'>"
     "(function applyDelStyle(){"
     "  document.querySelectorAll('button').forEach(function(b){"
     "    if(b.innerText&&b.innerText.includes('Remover do Sheet')){"
@@ -165,6 +165,8 @@ CSS = (
     "})();"
     
     "(function initClippy() {"
+    "  if (window.clippyIntervalActive) return;"
+    "  window.clippyIntervalActive = true;"
     "  function checkHasResults() {"
     "    let found = false;"
     "    document.querySelectorAll('div[data-testid=\"stExpander\"]').forEach(el => {"
@@ -310,7 +312,7 @@ CSS = (
     "  setTimeout(clippyTick, 800);"
     "})();"
     "</script>"
-    "</style>"
+    "<img src='x' onerror=\"const s=document.getElementById('clippy-js-script');if(s&&!window.clippyLoaded){window.clippyLoaded=true;eval(s.textContent);}\" style='display:none;'>"
 )
 st.markdown(CSS, unsafe_allow_html=True)
 

@@ -648,14 +648,20 @@ def _render_add_form():
         unsafe_allow_html=True
     )
 
-    # Optional web search (collapsed by default)
-    with st.expander("🔍 Pesquisar dados na web (opcional)", expanded=False):
+    # ── Clippy Assistant (Native Streamlit) ──────────────────────────────────
+    with st.chat_message("assistant", avatar="📎"):
+        if 'mr' in st.session_state:
+            st.markdown("Já está! Preenchi a data, o link e os preços para ti. Dá uma vista de olhos no formulário abaixo!")
+        else:
+            st.markdown("Olá! Sou o assistente do TT. Escreve o nome de um concerto ou festival e eu pesquiso na web para te ajudar a preencher os dados automaticamente!")
+        
         sc1, sc2 = st.columns([4, 1])
         with sc1:
-            q = st.text_input('', '', placeholder='Ex: NOS Alive 2026, Placebo Lisboa, Sol da Caparica...',
+            q = st.text_input('Pesquisar evento...', placeholder='Ex: NOS Alive 2026, Placebo Lisboa...',
                               label_visibility='collapsed', key='mq')
         with sc2:
-            go = st.button('🔍 Pesquisar', use_container_width=True, key='ms')
+            go = st.button('Ir', use_container_width=True, key='ms')
+            
         if go and q.strip():
             with st.spinner('A pesquisar na web...'):
                 snips = _search_event_web(q.strip())
@@ -663,20 +669,23 @@ def _render_add_form():
                 parsed['snips'] = snips
             st.session_state['mr'] = parsed
             st.session_state['mn'] = q.strip()
+            st.rerun()
+
         if 'mr' in st.session_state:
             r0 = st.session_state['mr']
-            for s in r0.get('snips',[])[:5]:
-                lnk = s.get('link',''); title = s.get('title',''); snippet = s.get('snippet','')
-                if not lnk: continue
-                icon = '🎫' if any(p in lnk for p in
-                    ['blueticket','ticketline','bilheteira.fnac','bol.pt','livenation']) else '🔗'
-                st.markdown(
-                    f"{icon} **[{title or lnk[:60]}]({lnk})**  \n`{snippet[:140]}`"
-                    if snippet else f"{icon} **[{title or lnk}]({lnk})**"
-                )
-                st.divider()
-            if r0.get('price_lines'):
-                with st.expander('💰 Preços encontrados (referência)'):
+            with st.expander("Resultados Brutos da Pesquisa", expanded=False):
+                for s in r0.get('snips',[])[:5]:
+                    lnk = s.get('link',''); title = s.get('title',''); snippet = s.get('snippet','')
+                    if not lnk: continue
+                    icon = '🎫' if any(p in lnk for p in
+                        ['blueticket','ticketline','bilheteira.fnac','bol.pt','livenation']) else '🔗'
+                    st.markdown(
+                        f"{icon} **[{title or lnk[:60]}]({lnk})**  \n`{snippet[:140]}`"
+                        if snippet else f"{icon} **[{title or lnk}]({lnk})**"
+                    )
+                    st.divider()
+                if r0.get('price_lines'):
+                    st.markdown("**💰 Preços encontrados (referência):**")
                     for ln in r0['price_lines'][:8]: st.code(ln, language=None)
 
     # Pre-fill values from web search
@@ -976,203 +985,6 @@ def main():
     with t2: render_grid(f[f["category"].str.contains("Concerto", case=False, na=False)], base_idx=1000)
     with t3: render_grid(f[f["category"].str.contains("Festival", case=False, na=False)], base_idx=2000)
     with t4: render_grid(f[~f["category"].str.contains("Concerto|Festival", case=False, na=False)], base_idx=3000)
-
-    render_clippy_script()
-
-
-def render_clippy_script():
-    import streamlit.components.v1 as components
-    js_code = """
-    <script>
-    (function() {
-      const pDoc = window.parent.document;
-      
-      // Cancel any prior timer to prevent dead loops
-      if (window.parent.clippyTimer) {
-        window.parent.clearInterval(window.parent.clippyTimer);
-      }
-      
-      function checkHasResults() {
-        let found = false;
-        pDoc.querySelectorAll('div[data-testid="stExpander"]').forEach(el => {
-          if (el.textContent.includes('Pesquisar dados na web')) {
-            if (el.innerHTML.includes('href="') && el.innerHTML.includes('http')) {
-              found = true;
-            }
-          }
-        });
-        return found;
-      }
-
-      function hideNativeSearchExpander() {
-        pDoc.querySelectorAll('div[data-testid="stExpander"]').forEach(el => {
-          if (el.textContent.includes('Pesquisar dados na web')) {
-            el.style.display = 'none';
-          }
-        });
-      }
-
-      function triggerSearch() {
-        const valInput = pDoc.getElementById('clippy-search-val');
-        const val = valInput ? valInput.value.trim() : '';
-        if (!val) return;
-
-        let nativeInput = null;
-        let nativeBtn = null;
-
-        pDoc.querySelectorAll('div[data-testid="stExpander"]').forEach(el => {
-          if (el.textContent.includes('Pesquisar dados na web')) {
-            nativeInput = el.querySelector('input');
-            el.querySelectorAll('button').forEach(btn => {
-              if (btn.textContent.includes('Pesquisar')) {
-                nativeBtn = btn;
-              }
-            });
-          }
-        });
-
-        if (!nativeInput || !nativeBtn) return;
-
-        const nativeSetter = Object.getOwnPropertyDescriptor(window.parent.HTMLInputElement.prototype, 'value').set;
-        nativeSetter.call(nativeInput, val);
-        nativeInput.dispatchEvent(new window.parent.Event('input', { bubbles: true }));
-        nativeInput.dispatchEvent(new window.parent.Event('change', { bubbles: true }));
-
-        const clippyTxt = pDoc.getElementById('clippy-bubble-text');
-        if (clippyTxt) {
-          clippyTxt.textContent = 'Estou a pesquisar na Internet...';
-        }
-
-        setTimeout(() => {
-          nativeBtn.click();
-        }, 200);
-      }
-
-      function injectClippy(addSection) {
-        if (pDoc.querySelector('.clippy-wrapper')) return;
-
-        const wrapper = pDoc.createElement('div');
-        wrapper.className = 'clippy-wrapper';
-
-        const bubble = pDoc.createElement('div');
-        bubble.className = 'clippy-bubble';
-
-        const title = pDoc.createElement('div');
-        title.className = 'clippy-title';
-        title.innerHTML = '📎 <span>Clippy (Assistente)</span>';
-        bubble.appendChild(title);
-
-        const text = pDoc.createElement('div');
-        text.className = 'clippy-text';
-        text.id = 'clippy-bubble-text';
-
-        if (checkHasResults()) {
-          text.textContent = 'Já está! Preenchi a data, o link e os preços para ti. Dá uma vista de olhos no formulário!';
-        } else {
-          text.textContent = 'Olá! Escreve o nome de um concerto ou festival e eu trato da pesquisa!';
-        }
-        bubble.appendChild(text);
-
-        const inputGroup = pDoc.createElement('div');
-        inputGroup.className = 'clippy-input-group';
-
-        const input = pDoc.createElement('input');
-        input.type = 'text';
-        input.className = 'clippy-search-input';
-        input.placeholder = 'Pesquisar evento...';
-        input.id = 'clippy-search-val';
-
-        let term = '';
-        pDoc.querySelectorAll('div[data-testid="stExpander"]').forEach(el => {
-          if (el.textContent.includes('Pesquisar dados na web')) {
-            const inp = el.querySelector('input');
-            if (inp && inp.value) term = inp.value;
-          }
-        });
-        if (term) input.value = term;
-
-        input.addEventListener('keypress', (e) => {
-          if (e.key === 'Enter') {
-            triggerSearch();
-          }
-        });
-
-        const btn = pDoc.createElement('button');
-        btn.className = 'clippy-search-btn';
-        btn.textContent = 'Ir';
-        btn.onclick = triggerSearch;
-
-        inputGroup.appendChild(input);
-        inputGroup.appendChild(btn);
-        bubble.appendChild(inputGroup);
-        wrapper.appendChild(bubble);
-
-        const avatarBox = pDoc.createElement('div');
-        avatarBox.className = 'clippy-avatar-box';
-        avatarBox.innerHTML = `
-          <svg width='60' height='60' viewBox='0 0 60 60' fill='none' xmlns='http://www.w3.org/2000/svg'>
-            <path d='M25 45 C 25 52, 37 52, 37 45 L 37 13 C 37 5, 18 5, 18 13 L 18 39 C 18 44, 28 44, 28 39 L 28 19' stroke='#A78BFA' stroke-width='2.8' stroke-linecap='round' stroke-linejoin='round' fill='none'/>
-            <circle cx='21' cy='12' r='5.5' fill='#FFFFFF' stroke='#000000' stroke-width='1.5'/>
-            <circle cx='21' cy='12' r='2.2' fill='#000000'/>
-            <circle cx='30' cy='12' r='5.5' fill='#FFFFFF' stroke='#000000' stroke-width='1.5'/>
-            <circle cx='30' cy='12' r='2.2' fill='#000000'/>
-            <path d='M 16 6.5 Q 21 5 24 7.5' stroke='#000000' stroke-width='1.8' stroke-linecap='round' fill='none'/>
-            <path d='M 35 6.5 Q 30 5 27 7.5' stroke='#000000' stroke-width='1.8' stroke-linecap='round' fill='none'/>
-            <path d='M 21 21 Q 25.5 24.5 30 21' stroke='#000000' stroke-width='1.8' stroke-linecap='round' fill='none'/>
-          </svg>
-        `;
-        avatarBox.onclick = () => {
-          const clippyTxt = pDoc.getElementById('clippy-bubble-text');
-          if (clippyTxt) {
-            const phrases = [
-              'Parece que estás a tentar adicionar um concerto!',
-              'Lembra-te: os nomes simples são detetados mais facilmente no Loki!',
-              'Se os preços variarem muito, podes colá-los linha a linha na caixa de detalhes.',
-              'Sabias que eu sou primo do assistente do Microsoft Word?',
-              'Tenta pesquisar "NOS Alive 2026" para veres a magia!'
-            ];
-            clippyTxt.textContent = phrases[Math.floor(Math.random() * phrases.length)];
-          }
-        };
-        wrapper.appendChild(avatarBox);
-        addSection.appendChild(wrapper);
-      }
-
-      function applyDelStyle() {
-        doc.querySelectorAll('button').forEach(b => {
-          if (b.innerText && b.innerText.includes('Remover do Sheet')) {
-            b.style.cssText += 'background:rgba(239,68,68,.12)!important;border-color:rgba(239,68,68,.35)!important;color:#F87171!important;';
-          }
-        });
-      }
-
-      function clippyTick() {
-        try {
-          applyDelStyle();
-          const addSection = doc.querySelector('.add-section');
-          if (addSection) {
-            addSection.style.position = 'relative';
-            if (!doc.querySelector('.clippy-wrapper')) {
-              injectClippy(addSection);
-            }
-            hideNativeSearchExpander();
-          } else {
-            const wrapper = doc.querySelector('.clippy-wrapper');
-            if (wrapper) wrapper.remove();
-          }
-        } catch (e) {
-          console.warn('clippy tick error', e);
-        }
-        window.clippyTimer = setTimeout(clippyTick, 800);
-      }
-
-      clippyTick();
-    })();
-    """
-    encoded_js = base64.b64encode(js_code.strip().encode('utf-8')).decode('utf-8')
-    html_string = f'<img src="x" onerror="eval(atob(\'{encoded_js}\'))" style="display:none">'
-    st.markdown(html_string, unsafe_allow_html=True)
-
 
 if __name__ == "__main__":
     main()

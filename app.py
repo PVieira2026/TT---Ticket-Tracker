@@ -275,7 +275,7 @@ def _ask_n8n_ai(query):
         return None
         
     try:
-        resp = _req.post(webhook_url, json={'query': query}, timeout=45)
+        resp = _req.post(webhook_url, json={'query': query}, timeout=90)
         if resp.status_code == 200:
             return resp.json()
         else:

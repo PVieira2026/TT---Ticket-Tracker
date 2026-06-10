@@ -264,72 +264,26 @@ def _dedup_display(df):
 
 # ── Web search helpers ────────────────────────────────────────────────────────
 
-def _search_event_web(query):
+def _ask_n8n_ai(query):
     import requests as _req
-    sk = ''
-    try: sk = os.environ.get('SERPER_API_KEY') or st.secrets.get('SERPER_API_KEY', '')
-    except: sk = os.environ.get('SERPER_API_KEY', '')
-    snippets = []
-    if sk:
-        try:
-            resp = _req.post('https://google.serper.dev/search',
-                headers={'X-API-KEY': sk, 'Content-Type': 'application/json'},
-                json={'q': query + ' bilhetes preco portugal', 'gl': 'pt', 'hl': 'pt', 'num': 6},
-                timeout=12)
-            if resp.status_code == 200:
-                data = resp.json()
-                if data.get('answerBox'):
-                    ab = data['answerBox']
-                    snippets.append({'title': 'answer',
-                                     'snippet': ab.get('snippet', ab.get('answer', '')),
-                                     'link': ab.get('link', '')})
-                for r2 in data.get('organic', []):
-                    snippets.append({'title': r2.get('title',''),
-                                     'snippet': r2.get('snippet',''),
-                                     'link': r2.get('link','')})
-        except: pass
-    if not snippets:
-        try:
-            resp = _req.get('https://api.duckduckgo.com/',
-                params={'q': query + ' bilhetes', 'format': 'json', 'no_html': 1}, timeout=10)
-            data = resp.json()
-            if data.get('AbstractText'):
-                snippets.append({'title': data.get('Heading',''),
-                                 'snippet': data['AbstractText'],
-                                 'link': data.get('AbstractURL','')})
-        except: pass
-    return snippets
+    import os, streamlit as st
+    try: webhook_url = os.environ.get('N8N_WEBHOOK_URL') or st.secrets.get('N8N_WEBHOOK_URL', '')
+    except: webhook_url = os.environ.get('N8N_WEBHOOK_URL', '')
+    
+    if not webhook_url:
+        st.error("URL do Webhook n8n não configurado no .streamlit/secrets.toml (chave N8N_WEBHOOK_URL)!")
+        return None
+        
+    try:
+        resp = _req.post(webhook_url, json={'query': query}, timeout=45)
+        if resp.status_code == 200:
+            return resp.json()
+        else:
+            st.error(f"Erro do n8n: {resp.status_code} - {resp.text}")
+    except Exception as e:
+        st.error(f"Erro ao ligar ao n8n: {e}")
+    return None
 
-def _parse_snippets(snippets):
-    combined = ' | '.join(s.get('snippet','') for s in snippets)
-    MONTHS = {
-        'jan':1,'fev':2,'mar':3,'abr':4,'mai':5,'jun':6,'jul':7,'ago':8,
-        'set':9,'out':10,'nov':11,'dez':12,'janeiro':1,'fevereiro':2,'marco':3,
-        'abril':4,'maio':5,'junho':6,'julho':7,'agosto':8,'setembro':9,
-        'outubro':10,'novembro':11,'dezembro':12
-    }
-    date_found = ''
-    for s in snippets:
-        txt = s.get('snippet','')
-        m = re.search(r'(\d{1,2})\s+(?:de\s+)?([a-záéíóúç]+)(?:\s+de)?\s+(202[5-9])', txt, re.I)
-        if m:
-            mon = MONTHS.get(m.group(2).lower()) or MONTHS.get(m.group(2)[:3].lower())
-            if mon:
-                date_found = f"{m.group(3)}-{mon:02d}-{int(m.group(1)):02d}"
-                break
-        m2 = re.search(r'(\d{2})/(\d{2})/(202[5-9])', txt)
-        if m2:
-            date_found = f"{m2.group(3)}-{m2.group(2)}-{m2.group(1)}"
-            break
-    price_lines = [l.strip() for l in re.split(r'[\n;|]', combined)
-                   if '€' in l and 8 <= len(l.strip()) <= 150]
-    url = ''
-    for s in snippets:
-        lnk = s.get('link','')
-        if any(p in lnk for p in ['blueticket','ticketline','bilheteira.fnac','bol.pt','livenation','everythingisnew']):
-            url = lnk; break
-    if not url and snippets: url = snippets[0].get('link','')
-    return {'date': date_found, 'price_lines': price_lines, 'url': url}
 
 # ── Sheet operations ──────────────────────────────────────────────────────────
 
@@ -648,51 +602,66 @@ def _render_add_form():
         unsafe_allow_html=True
     )
 
-    # ── Clippy Assistant (Native Streamlit) ──────────────────────────────────
-    with st.chat_message("assistant", avatar="📎"):
-        if 'mr' in st.session_state:
-            st.markdown("Já está! Preenchi a data, o link e os preços para ti. Dá uma vista de olhos no formulário abaixo!")
-        else:
-            st.markdown("Olá! Sou o assistente do TT. Escreve o nome de um concerto ou festival e eu pesquiso na web para te ajudar a preencher os dados automaticamente!")
-        
-        sc1, sc2 = st.columns([4, 1])
-        with sc1:
-            q = st.text_input('Pesquisar evento...', placeholder='Ex: NOS Alive 2026, Placebo Lisboa...',
-                              label_visibility='collapsed', key='mq')
-        with sc2:
-            go = st.button('Ir', use_container_width=True, key='ms')
+    # ── Clippy Assistant (Windows 98 Style) ──────────────────────────────────
+    if 'mr' in st.session_state:
+        msg = "Já está! Preenchi a data, o link e os preços para ti. Dá uma vista de olhos no formulário abaixo!"
+    else:
+        msg = "Olá! Sou o assistente do TT. Escreve o nome de um concerto ou festival e eu pesquiso na web para te ajudar a preencher os dados automaticamente!"
+
+    clippy_html = f"""
+    <div style="display: flex; align-items: flex-start; gap: 12px; margin-bottom: 20px; font-family: 'Comic Sans MS', 'Chalkboard SE', 'Comic Neue', sans-serif;">
+      <div style="width: 80px; flex-shrink: 0;">
+        <img src="https://upload.wikimedia.org/wikipedia/en/thumb/e/eb/Clippy-transparent.png/220px-Clippy-transparent.png" width="80" style="animation: clippy-float 3s ease-in-out infinite;">
+      </div>
+      <div style="background-color: #FFFFCC; border: 2px solid #000; border-radius: 8px; padding: 12px 16px; position: relative; max-width: 500px; color: #000; box-shadow: 2px 2px 0px #000; font-size: 14px; font-weight: 500;">
+        <div style="position: absolute; left: -14px; top: 20px; width: 0; height: 0; border-top: 10px solid transparent; border-bottom: 10px solid transparent; border-right: 14px solid #000;"></div>
+        <div style="position: absolute; left: -10px; top: 20px; width: 0; height: 0; border-top: 10px solid transparent; border-bottom: 10px solid transparent; border-right: 14px solid #FFFFCC;"></div>
+        {msg}
+      </div>
+    </div>
+    <style>
+      @keyframes clippy-float {{
+        0%, 100% {{ transform: translateY(0); }}
+        50% {{ transform: translateY(-5px); }}
+      }}
+    </style>
+    """
+    st.markdown(clippy_html, unsafe_allow_html=True)
+    
+    sc1, sc2 = st.columns([4, 1])
+    with sc1:
+        q = st.text_input('Pesquisar evento...', placeholder='Ex: NOS Alive 2026, Placebo Lisboa...',
+                          label_visibility='collapsed', key='mq')
+    with sc2:
+        go = st.button('Ir', use_container_width=True, key='ms')
             
         if go and q.strip():
-            with st.spinner('A pesquisar na web...'):
-                snips = _search_event_web(q.strip())
-                parsed = _parse_snippets(snips)
-                parsed['snips'] = snips
-            st.session_state['mr'] = parsed
-            st.session_state['mn'] = q.strip()
-            st.rerun()
+            with st.spinner('A consultar a Inteligência Artificial...'):
+                parsed = _ask_n8n_ai(q.strip())
+            if parsed:
+                st.session_state['mr'] = parsed
+                st.session_state['mn'] = q.strip()
+                st.rerun()
 
         if 'mr' in st.session_state:
             r0 = st.session_state['mr']
-            with st.expander("Resultados Brutos da Pesquisa", expanded=False):
-                for s in r0.get('snips',[])[:5]:
-                    lnk = s.get('link',''); title = s.get('title',''); snippet = s.get('snippet','')
-                    if not lnk: continue
-                    icon = '🎫' if any(p in lnk for p in
-                        ['blueticket','ticketline','bilheteira.fnac','bol.pt','livenation']) else '🔗'
-                    st.markdown(
-                        f"{icon} **[{title or lnk[:60]}]({lnk})**  \n`{snippet[:140]}`"
-                        if snippet else f"{icon} **[{title or lnk}]({lnk})**"
-                    )
-                    st.divider()
-                if r0.get('price_lines'):
-                    st.markdown("**💰 Preços encontrados (referência):**")
-                    for ln in r0['price_lines'][:8]: st.code(ln, language=None)
+            with st.expander("Dados Extraídos pelo n8n", expanded=False):
+                st.json(r0)
 
     # Pre-fill values from web search
     r = st.session_state.get('mr', {})
-    _prefill_name = st.session_state.get('mn', '')
+    _prefill_name = r.get('name') or st.session_state.get('mn', '')
     _prefill_url  = r.get('url', '')
-    _prefill_date = r.get('date', '')
+    _prefill_date_start = r.get('date_start', '')
+    _prefill_date_end = r.get('date_end', '')
+    
+    _platform_val = r.get('platform') or 'Outro'
+    if _platform_val not in ['FNAC Bilheteira','Ticketline','Everything Is New','BOL','Blueticket','Outro']:
+        _platform_val = 'Outro'
+        
+    _category_val = r.get('category') or 'Evento'
+    if _category_val not in ['Festival','Concerto','Evento']:
+        _category_val = 'Evento'
 
     # ── Row 1: Name ───────────────────────────────────────────────────────
     st.markdown('<div class="add-field-label">Nome do Evento</div>', unsafe_allow_html=True)
@@ -703,10 +672,12 @@ def _render_add_form():
     # ── Row 2: Platform + Category ────────────────────────────────────────
     pc1, pc2 = st.columns(2)
     with pc1:
+        plat_idx = ['FNAC Bilheteira','Ticketline','Everything Is New','BOL','Blueticket','Outro'].index(_platform_val)
         plat = st.selectbox('Plataforma', ['FNAC Bilheteira','Ticketline','Everything Is New',
-                                            'BOL','Blueticket','Outro'], key='mm_p')
+                                            'BOL','Blueticket','Outro'], index=plat_idx, key='mm_p')
     with pc2:
-        cat = st.selectbox('Categoria', ['Festival','Concerto','Evento'], key='mm_c')
+        cat_idx = ['Festival','Concerto','Evento'].index(_category_val)
+        cat = st.selectbox('Categoria', ['Festival','Concerto','Evento'], index=cat_idx, key='mm_c')
 
     # ── Row 3: Dates (own row so calendar doesn't overlap) ────────────────
     st.markdown('<div class="add-field-label">📅 Datas</div>', unsafe_allow_html=True)
@@ -715,8 +686,8 @@ def _render_add_form():
     with dcol1:
         _dt_default = None
         try:
-            if _prefill_date:
-                _dt_default = date.fromisoformat(_prefill_date)
+            if _prefill_date_start:
+                _dt_default = date.fromisoformat(_prefill_date_start[:10])
         except: pass
         dt_start = st.date_input(
             'Data de início *',
@@ -725,9 +696,14 @@ def _render_add_form():
             key='mm_d_start'
         )
     with dcol2:
+        _dt_end_default = None
+        try:
+            if _prefill_date_end:
+                _dt_end_default = date.fromisoformat(_prefill_date_end[:10])
+        except: pass
         dt_end = st.date_input(
             'Data de fim (opcional)',
-            value=None,
+            value=_dt_end_default,
             format='DD/MM/YYYY',
             key='mm_d_end'
         )
@@ -745,7 +721,7 @@ def _render_add_form():
         ev_url = st.text_input('URL do evento', value=_prefill_url, key='mm_u')
     with ui2:
         ev_img = st.text_input('URL da imagem',
-                               value=st.session_state.get('mm_img_v',''),
+                               value=r.get('image_url') or st.session_state.get('mm_img_v',''),
                                placeholder='https://...', key='mm_img')
     if ev_img:
         try: st.image(ev_img, width=180, caption='Preview')
@@ -755,9 +731,9 @@ def _render_add_form():
     st.markdown('<div class="add-field-label">💰 Preços</div>', unsafe_allow_html=True)
     pr1, pr2, pr3 = st.columns([1, 1, 2])
     with pr1:
-        pmin = st.text_input('Preço mínimo (€)', '', placeholder='25', key='mm_pn')
+        pmin = st.text_input('Preço mínimo (€)', value=str(r.get('price_min','')), placeholder='25', key='mm_pn')
     with pr2:
-        pmax = st.text_input('Preço máximo (€)', '', placeholder='85', key='mm_px')
+        pmax = st.text_input('Preço máximo (€)', value=str(r.get('price_max','')), placeholder='85', key='mm_px')
     with pr3:
         detail = st.text_area('Bilhetes (linha por linha)', '', height=90,
                                placeholder='Bilhete Diário: 25€\nPasse 3 dias: 75€', key='mm_det')

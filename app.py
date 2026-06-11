@@ -359,6 +359,16 @@ def _ask_n8n_ai(query):
                 snippet = s.get('snippet', '')
                 context += f"Result {i+1}:\nTitle: {title}\nLink: {link}\nSnippet: {snippet}\n\n"
                 
+            try:
+                from scraper.sources.web_search_fallback import _extract_from_snippets
+                from scraper.parser import build_tickets_detail
+                rows, _ = _extract_from_snippets(snippets, query)
+                clean_tickets = build_tickets_detail(rows)
+                if clean_tickets:
+                    context += f"\n=== DETALHE DOS BILHETES PRÉ-EXTRAÍDO (USAR EXATAMENTE ESTES DADOS) ===\n{clean_tickets}\n========================================================================\n"
+            except Exception:
+                pass
+                
             # Fetch image URL
             img_url = ""
             try:

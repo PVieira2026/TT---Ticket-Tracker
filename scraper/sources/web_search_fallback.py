@@ -213,3 +213,41 @@ def search_image(event_name: str, event_date: str = '') -> str:
     except Exception as e: log.warning(f'[ImageSearch/Wiki] {e}')
     
     return ''
+
+def scrape_urls_for_context(snippets: list) -> str:
+    """Scrapes the actual URLs found in snippets to provide deep context, avoiding 60s Toqan timeouts."""
+    try:
+        import requests
+        from bs4 import BeautifulSoup
+        import re
+    except ImportError:
+        return ""
+    
+    extracted_text = ""
+    urls_to_scrape = []
+    
+    for s in snippets:
+        link = s.get('link', '')
+        if any(d in link.lower() for d in ['blueticket', 'fnac', 'ticketline', 'bol.pt', 'everythingisnew', 'festival']):
+            if link not in urls_to_scrape:
+                urls_to_scrape.append(link)
+                
+    if not urls_to_scrape:
+        urls_to_scrape = [s.get('link') for s in snippets[:2] if s.get('link')]
+        
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+    
+    for url in urls_to_scrape[:2]:
+        try:
+            resp = requests.get(url, headers=headers, timeout=5)
+            if resp.status_code == 200:
+                soup = BeautifulSoup(resp.content, 'html.parser')
+                for script in soup(["script", "style"]):
+                    script.extract()
+                text = soup.get_text(separator=' ')
+                text = re.sub(r'\s+', ' ', text).strip()
+                extracted_text += f"\n--- CONTENT FROM {url} ---\n{text[:5000]}\n"
+        except Exception as e:
+            log.warning(f"Failed to scrape {url}: {e}")
+            
+    return extracted_text

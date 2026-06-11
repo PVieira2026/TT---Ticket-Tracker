@@ -4,6 +4,15 @@ from datetime import datetime, date, timedelta
 import streamlit as st
 import pandas as pd
 
+# Inject Streamlit secrets into environment variables so sub-modules can access them
+for k in ["SPREADSHEET_ID", "SHEET_GID", "GOOGLE_SERVICE_ACCOUNT_JSON", "SERPER_API_KEY", "SERPER_API_KEY_2", "N8N_WEBHOOK_URL"]:
+    try:
+        val = st.secrets.get(k) or st.secrets.get(k.lower())
+        if val and not os.environ.get(k):
+            os.environ[k] = str(val)
+    except Exception:
+        pass
+
 st.set_page_config(
     page_title="TT Tracker — Concertos & Festivais",
     page_icon="🎪",

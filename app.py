@@ -264,6 +264,23 @@ def _dedup_display(df):
 
 # ── Web search helpers ────────────────────────────────────────────────────────
 
+def _parse_n8n_response(parsed):
+    """Robust parser to clean and extract keys from n8n response in case of stringified JSON in 'answer'."""
+    if not parsed:
+        return {}
+    if 'answer' in parsed and isinstance(parsed['answer'], str):
+        try:
+            import json
+            clean_text = parsed['answer'].replace("```json", "").replace("```", "").strip()
+            nested = json.loads(clean_text)
+            if isinstance(nested, dict):
+                return nested
+        except Exception:
+            pass
+    if 'answer' in parsed and isinstance(parsed['answer'], dict):
+        return parsed['answer']
+    return parsed
+
 def _ask_n8n_ai(query):
     import requests as _req
     import os, streamlit as st
@@ -277,7 +294,8 @@ def _ask_n8n_ai(query):
     try:
         resp = _req.post(webhook_url, json={'query': query}, timeout=90)
         if resp.status_code == 200:
-            return resp.json()
+            parsed = resp.json()
+            return _parse_n8n_response(parsed)
         else:
             st.error(f"Erro do n8n: {resp.status_code} - {resp.text}")
     except Exception as e:
@@ -590,6 +608,20 @@ def render_grid(df, base_idx=0):
 
 # ── Add event form ────────────────────────────────────────────────────────────
 
+def _get_clippy_base64():
+    """Reads local clippy.png, converts it to base64, otherwise falls back to a stable URL."""
+    import base64
+    import os
+    local_path = "clippy.png"
+    if os.path.exists(local_path):
+        try:
+            with open(local_path, "rb") as f:
+                data = f.read()
+            return f"data:image/png;base64,{base64.b64encode(data).decode()}"
+        except Exception:
+            pass
+    return "https://assets.codepen.io/124053/clippy.png"
+
 def _render_add_form():
     st.markdown(
         '<div class="add-section">'
@@ -608,10 +640,11 @@ def _render_add_form():
     else:
         msg = "Olá! Sou o assistente do TT. Escreve o nome de um concerto ou festival e eu pesquiso na web para te ajudar a preencher os dados automaticamente!"
 
+    clippy_img = _get_clippy_base64()
     clippy_html = f"""
     <div style="display: flex; align-items: flex-start; gap: 12px; margin-bottom: 20px; font-family: 'Comic Sans MS', 'Chalkboard SE', 'Comic Neue', sans-serif;">
       <div style="width: 80px; flex-shrink: 0;">
-        <img src="https://upload.wikimedia.org/wikipedia/en/thumb/e/eb/Clippy-transparent.png/220px-Clippy-transparent.png" width="80" style="animation: clippy-float 3s ease-in-out infinite;">
+        <img src="{clippy_img}" width="80" style="animation: clippy-float 3s ease-in-out infinite;">
       </div>
       <div style="background-color: #FFFFCC; border: 2px solid #000; border-radius: 8px; padding: 12px 16px; position: relative; max-width: 500px; color: #000; box-shadow: 2px 2px 0px #000; font-size: 14px; font-weight: 500;">
         <div style="position: absolute; left: -14px; top: 20px; width: 0; height: 0; border-top: 10px solid transparent; border-bottom: 10px solid transparent; border-right: 14px solid #000;"></div>

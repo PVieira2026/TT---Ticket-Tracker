@@ -612,7 +612,7 @@ def _get_clippy_base64():
     """Reads local clippy.png, converts it to base64, otherwise falls back to a stable URL."""
     import base64
     import os
-    local_path = "clippy.png"
+    local_path = os.path.join(os.path.dirname(__file__), "clippy.png")
     if os.path.exists(local_path):
         try:
             with open(local_path, "rb") as f:
@@ -620,7 +620,7 @@ def _get_clippy_base64():
             return f"data:image/png;base64,{base64.b64encode(data).decode()}"
         except Exception:
             pass
-    return "https://assets.codepen.io/124053/clippy.png"
+    return "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48dGV4dCB5PSI4MCIgZm9udC1zaXplPSI4MCI+8J+klDwvdGV4dD48L3N2Zz4="
 
 def _render_add_form():
     st.markdown(

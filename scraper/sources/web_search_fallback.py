@@ -71,15 +71,15 @@ def _search_serper(query):
 
 def _search_duckduckgo(query):
     try:
-        resp=requests.get("https://api.duckduckgo.com/",
-            params={"q":query,"format":"json","no_html":1,"skip_disambig":1},timeout=12)
-        data=resp.json(); results=[]
-        if data.get("AbstractText"):
-            results.append({"title":data.get("Heading",""),"snippet":data["AbstractText"],"link":data.get("AbstractURL","")})
-        for t in data.get("RelatedTopics",[])[:6]:
-            if isinstance(t,dict) and t.get("Text"):
-                results.append({"title":"","snippet":t["Text"],"link":t.get("FirstURL","")})
-        return results
+        from bs4 import BeautifulSoup
+        resp=requests.post("https://html.duckduckgo.com/html/", data={"q": query}, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}, timeout=12)
+        soup = BeautifulSoup(resp.text, 'html.parser')
+        results = []
+        for a in soup.find_all('a', class_='result__snippet'):
+            text = a.text.strip()
+            if text:
+                results.append({"title": "", "snippet": text, "link": ""})
+        return results[:8]
     except Exception as e: log.warning(f"DDG: {e}"); return []
 
 

@@ -608,19 +608,19 @@ def render_grid(df, base_idx=0):
 
 # ── Add event form ────────────────────────────────────────────────────────────
 
-def _get_clippy_base64():
-    """Reads local clippy.png, converts it to base64, otherwise falls back to a stable URL."""
+def _get_assistant_avatar(state="hello"):
+    """Returns a base64 inline SVG of an emoji based on the assistant state."""
     import base64
-    import os
-    local_path = os.path.join(os.path.dirname(__file__), "clippy.png")
-    if os.path.exists(local_path):
-        try:
-            with open(local_path, "rb") as f:
-                data = f.read()
-            return f"data:image/png;base64,{base64.b64encode(data).decode()}"
-        except Exception:
-            pass
-    return "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48dGV4dCB5PSI4MCIgZm9udC1zaXplPSI4MCI+8J+klDwvdGV4dD48L3N2Zz4="
+    def _svg(emoji):
+        svg = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y="80" font-size="80">{emoji}</text></svg>'
+        return f"data:image/svg+xml;base64,{base64.b64encode(svg.encode()).decode()}"
+    
+    if state == "success":
+        return _svg("😎")
+    elif state == "thinking":
+        return _svg("🤔")
+    else:
+        return _svg("👋")
 
 def _render_add_form():
     st.markdown(
@@ -634,17 +634,23 @@ def _render_add_form():
         unsafe_allow_html=True
     )
 
-    # ── Clippy Assistant (Windows 98 Style) ──────────────────────────────────
-    if 'mr' in st.session_state:
+    # ── Assistant Avatar (Dynamic Emoji) ──────────────────────────────────
+    is_searching = st.session_state.get('ms', False) and st.session_state.get('mq', '').strip()
+    
+    if is_searching:
+        msg = "Hmm... deixa-me procurar na web e analisar os resultados da Inteligência Artificial..."
+        avatar_img = _get_assistant_avatar("thinking")
+    elif 'mr' in st.session_state:
         msg = "Já está! Preenchi a data, o link e os preços para ti. Dá uma vista de olhos no formulário abaixo!"
+        avatar_img = _get_assistant_avatar("success")
     else:
         msg = "Olá! Sou o assistente do TT. Escreve o nome de um concerto ou festival e eu pesquiso na web para te ajudar a preencher os dados automaticamente!"
+        avatar_img = _get_assistant_avatar("hello")
 
-    clippy_img = _get_clippy_base64()
     clippy_html = f"""
     <div style="display: flex; align-items: flex-start; gap: 12px; margin-bottom: 20px; font-family: 'Comic Sans MS', 'Chalkboard SE', 'Comic Neue', sans-serif;">
       <div style="width: 80px; flex-shrink: 0;">
-        <img src="{clippy_img}" width="80" style="animation: clippy-float 3s ease-in-out infinite;">
+        <img src="{avatar_img}" width="80" style="animation: clippy-float 3s ease-in-out infinite;">
       </div>
       <div style="background-color: #FFFFCC; border: 2px solid #000; border-radius: 8px; padding: 12px 16px; position: relative; max-width: 500px; color: #000; box-shadow: 2px 2px 0px #000; font-size: 14px; font-weight: 500;">
         <div style="position: absolute; left: -14px; top: 20px; width: 0; height: 0; border-top: 10px solid transparent; border-bottom: 10px solid transparent; border-right: 14px solid #000;"></div>
@@ -768,8 +774,11 @@ def _render_add_form():
     with pr2:
         pmax = st.text_input('Preço máximo (€)', value=str(r.get('price_max','')), placeholder='85', key='mm_px')
     with pr3:
-        detail = st.text_area('Bilhetes (linha por linha)', '', height=90,
-                               placeholder='Bilhete Diário: 25€\nPasse 3 dias: 75€', key='mm_det')
+        detail_val = r.get('tickets_detail', '')
+        if isinstance(detail_val, list):
+            detail_val = '\\n'.join(detail_val)
+        detail = st.text_area('Bilhetes (linha por linha)', detail_val, height=90,
+                               placeholder='Bilhete Diário: 25€\\nPasse 3 dias: 75€', key='mm_det')
 
     st.markdown('<hr class="add-divider">', unsafe_allow_html=True)
 

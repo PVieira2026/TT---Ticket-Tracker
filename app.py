@@ -359,16 +359,19 @@ def _ask_n8n_ai(query):
                 snippet = s.get('snippet', '')
                 context += f"Result {i+1}:\nTitle: {title}\nLink: {link}\nSnippet: {snippet}\n\n"
                 
-            # Scrape full text from the best URLs found
+            # Scrape full text and official image from the best URLs found
+            official_img = ""
             if snippets:
-                context += "\n" + scrape_urls_for_context(snippets)
+                text_content, official_img = scrape_urls_for_context(snippets)
+                context += "\n" + text_content
                 
-            # Fetch image URL
-            img_url = ""
-            try:
-                img_url = search_image(query)
-            except Exception:
-                pass
+            # Fetch image URL (prefer official over Bing)
+            img_url = official_img
+            if not img_url:
+                try:
+                    img_url = search_image(query)
+                except Exception:
+                    pass
             
             # 2. Call n8n webhook passing the massive context to bypass Toqan 60s timeout
             payload = {

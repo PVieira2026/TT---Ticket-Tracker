@@ -285,9 +285,9 @@ def _ask_n8n_ai(query):
     """
     Sends a query to n8n webhook and returns parsed JSON.
     
-    Uses a background worker thread to periodically update the Streamlit UI.
-    This prevents the Streamlit main thread from blocking entirely during long
-    AI inference runs, ensuring the elapsed timer updates in real time for a better UX.
+    Performs Google search and image retrieval locally in Python first to build 
+    a search context. This context is sent to n8n, allowing Toqan to extract 
+    the details in a single-shot step without calling tools, completing in <10 seconds.
     """
     import requests as _req
     import time, os, threading
@@ -326,10 +326,48 @@ def _ask_n8n_ai(query):
             patched = True
 
         try:
+            # 1. Fetch search context and image locally using existing fallback engine
+            from scraper.sources.web_search_fallback import (
+                _clean_query, _search_serper, _search_duckduckgo, 
+                _search_google_direct, _active_serper_key, search_image
+            )
+            
+            search_q = _clean_query(query)
+            snippets = []
+            
+            # Fetch text snippets from best available source
+            if _active_serper_key():
+                snippets = _search_serper(search_q)
+            if not snippets:
+                snippets = _search_duckduckgo(search_q)
+            if not snippets:
+                snippets = _search_google_direct(search_q)
+                
+            context = ""
+            for i, s in enumerate(snippets[:6]):
+                title = s.get('title', '')
+                link = s.get('link', '')
+                snippet = s.get('snippet', '')
+                context += f"Result {i+1}:\nTitle: {title}\nLink: {link}\nSnippet: {snippet}\n\n"
+                
+            # Fetch image URL
+            img_url = ""
+            try:
+                img_url = search_image(query)
+            except Exception:
+                pass
+            
+            # 2. Call n8n webhook passing pre-fetched data
+            payload = {
+                'query': query,
+                'search_context': context,
+                'pre_fetched_image': img_url
+            }
+            
             resp = _req.post(
                 webhook_url,
-                json={'query': query},
-                timeout=(10, 150),  # Safe connect and read timeouts
+                json=payload,
+                timeout=(10, 45),  # Fast timeout since Toqan has context
                 proxies={"http": None, "https": None}  # Skip system proxy autodiscovery delays
             )
             result['status_code'] = resp.status_code
@@ -356,7 +394,7 @@ def _ask_n8n_ai(query):
     # Poll the thread status and update the UI elapsed timer every second
     while thread.is_alive():
         elapsed = int(time.time() - start)
-        progress_slot.caption(f"⏳ A aguardar resposta do Agente IA... ({elapsed}s)")
+        progress_slot.caption(f"⏳ A obter dados na web e consultar o Agente IA... ({elapsed}s)")
         time.sleep(1)
 
     thread.join()
@@ -378,6 +416,7 @@ def _ask_n8n_ai(query):
         text = result.get('text', '')
         st.error(f"Erro do n8n: {status_code} - {text[:300]}")
         return None
+
 
 
 # ── Sheet operations ──────────────────────────────────────────────────────────
@@ -898,9 +937,9 @@ def _render_add_form():
     with pr3:
         detail_val = r.get('tickets_detail', '')
         if isinstance(detail_val, list):
-            detail_val = '\\n'.join(detail_val)
+            detail_val = '\n'.join(detail_val)
         detail = st.text_area('Bilhetes (linha por linha)', detail_val, height=90,
-                               placeholder='Bilhete Diário: 25€\\nPasse 3 dias: 75€', key='mm_det')
+                             placeholder='Bilhete Diário: 25€\nPasse 3 dias: 75€', key='mm_det')
 
     st.markdown('<hr class="add-divider">', unsafe_allow_html=True)
 

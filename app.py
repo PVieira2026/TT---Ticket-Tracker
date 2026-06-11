@@ -338,7 +338,8 @@ def _ask_n8n_ai(query):
             # 1. Fetch search context locally to save Toqan 60+ seconds of searching
             from scraper.sources.web_search_fallback import (
                 _clean_query, _search_serper, _search_duckduckgo, 
-                _search_google_direct, _active_serper_key, search_image
+                _search_google_direct, _active_serper_key, search_image,
+                scrape_urls_for_context
             )
             
             search_q = _clean_query(query)
@@ -358,6 +359,10 @@ def _ask_n8n_ai(query):
                 snippet = s.get('snippet', '')
                 context += f"Result {i+1}:\nTitle: {title}\nLink: {link}\nSnippet: {snippet}\n\n"
                 
+            # Scrape full text from the best URLs found
+            if snippets:
+                context += "\n" + scrape_urls_for_context(snippets)
+                
             # Fetch image URL
             img_url = ""
             try:
@@ -365,7 +370,7 @@ def _ask_n8n_ai(query):
             except Exception:
                 pass
             
-            # 2. Call n8n webhook passing the snippets to give Toqan a massive head start
+            # 2. Call n8n webhook passing the massive context to bypass Toqan 60s timeout
             payload = {
                 'query': query,
                 'search_context': context,

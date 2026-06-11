@@ -179,7 +179,29 @@ def search_image(event_name: str, event_date: str = '') -> str:
                 imgs = resp.json().get('images', [])
                 if imgs: return imgs[0].get('imageUrl', '')
         except Exception as e: log.warning(f'[ImageSearch] {e}')
-    # Wikipedia fallback
+    # Bing Images fallback (excellent for posters and events)
+    try:
+        import urllib.parse
+        url = f"https://www.bing.com/images/search?q={urllib.parse.quote(query + ' cartaz')}"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
+        }
+        resp = requests.get(url, headers=headers, timeout=8)
+        if resp.status_code == 200:
+            # Bing stores full image URLs in murl":"..."
+            matches = re.findall(r'murl&quot;:&quot;(https?[^&]+?\.(?:jpg|jpeg|png|webp))&quot;', resp.text, re.IGNORECASE)
+            if matches:
+                # Retorna o primeiro resultado válido
+                return matches[0]
+            
+            # Alternative Bing format
+            matches2 = re.findall(r'murl":"(https?[^"]+?\.(?:jpg|jpeg|png|webp))"', resp.text, re.IGNORECASE)
+            if matches2:
+                return matches2[0]
+    except Exception as e: 
+        log.warning(f'[ImageSearch/Bing] {e}')
+        
+    # Wikipedia fallback (absolute last resort)
     try:
         resp = requests.get('https://en.wikipedia.org/w/api.php',
             params={'action':'query','titles':event_name,'prop':'pageimages','format':'json','pithumbsize':600,'piprop':'thumbnail'},
@@ -189,4 +211,5 @@ def search_image(event_name: str, event_date: str = '') -> str:
                 url = pg.get('thumbnail',{}).get('source','')
                 if url: return url
     except Exception as e: log.warning(f'[ImageSearch/Wiki] {e}')
+    
     return ''

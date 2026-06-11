@@ -366,6 +366,19 @@ def _ask_n8n_ai(query):
             except Exception:
                 pass
             
+            # Debugging logs
+            try:
+                with open("debug_search.txt", "w", encoding="utf-8") as f_dbg:
+                    f_dbg.write(f"Query: {query}\n")
+                    f_dbg.write(f"Search Query: {search_q}\n")
+                    f_dbg.write(f"Active Serper Key: {repr(_active_serper_key())}\n")
+                    f_dbg.write(f"st.secrets keys: {list(st.secrets.keys()) if hasattr(st.secrets, 'keys') else 'No secrets.keys'}\n")
+                    f_dbg.write(f"os.environ SERPER_API_KEY: {repr(os.environ.get('SERPER_API_KEY'))}\n")
+                    f_dbg.write(f"Snippets count: {len(snippets)}\n")
+                    f_dbg.write(f"Image URL: {img_url}\n")
+            except Exception as e_dbg:
+                pass
+            
             # 2. Call n8n webhook passing pre-fetched data
             payload = {
                 'query': query,

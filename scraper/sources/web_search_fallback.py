@@ -242,13 +242,35 @@ def scrape_urls_for_context(snippets: list) -> tuple:
         try:
             resp = requests.get(url, headers=headers, timeout=5)
             if resp.status_code == 200:
+                html_text = resp.text
                 soup = BeautifulSoup(resp.content, 'html.parser')
                 
-                # Extract official image from og:image if we don't have one yet
+                # Agressively extract official image using Regex (bypasses JS rendering issues)
                 if not official_image_url:
-                    og_img = soup.find("meta", property="og:image")
-                    if og_img and og_img.get("content"):
-                        official_image_url = og_img["content"]
+                    # 1. Try to find known CDN image patterns in the raw HTML or JSON state
+                    cdn_patterns = [
+                        r'(https://blueticketcdn\.pt/imagesserver/[^"\'\s>]+?\.(?:jpg|jpeg|png|webp))',
+                        r'(https://multimedia\.fnac\.pt/[^"\'\s>]+?\.(?:jpg|jpeg|png|webp))',
+                        r'(https://ticketline\.sapo\.pt/fotos/eventos/[^"\'\s>]+?\.(?:jpg|jpeg|png|webp))',
+                        r'(https://bol\.pt/Eventos/Cartaz/[^"\'\s>]+?\.(?:jpg|jpeg|png|webp))'
+                    ]
+                    for pattern in cdn_patterns:
+                        matches = re.findall(pattern, html_text, re.IGNORECASE)
+                        if matches:
+                            official_image_url = matches[0]
+                            break
+                            
+                    # 2. Try og:image with regex if CDN fails
+                    if not official_image_url:
+                        og_match = re.search(r'property=["\']og:image["\']\s+content=["\']([^"\']+)["\']', html_text, re.IGNORECASE)
+                        if og_match:
+                            official_image_url = og_match.group(1)
+                            
+                    # 3. Try standard soup og:image as last resort
+                    if not official_image_url:
+                        og_img = soup.find("meta", property="og:image")
+                        if og_img and og_img.get("content"):
+                            official_image_url = og_img["content"]
                         
                 for script in soup(["script", "style"]):
                     script.extract()

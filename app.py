@@ -335,55 +335,11 @@ def _ask_n8n_ai(query):
             patched = True
 
         try:
-            # 1. Fetch search context and image locally using existing fallback engine
-            from scraper.sources.web_search_fallback import (
-                _clean_query, _search_serper, _search_duckduckgo, 
-                _search_google_direct, _active_serper_key, search_image
-            )
-            
-            search_q = _clean_query(query)
-            snippets = []
-            
-            # Fetch text snippets from best available source
-            if _active_serper_key():
-                snippets = _search_serper(search_q)
-            if not snippets:
-                snippets = _search_duckduckgo(search_q)
-            if not snippets:
-                snippets = _search_google_direct(search_q)
-                
-            context = ""
-            for i, s in enumerate(snippets[:6]):
-                title = s.get('title', '')
-                link = s.get('link', '')
-                snippet = s.get('snippet', '')
-                context += f"Result {i+1}:\nTitle: {title}\nLink: {link}\nSnippet: {snippet}\n\n"
-                
-            # Fetch image URL
-            img_url = ""
-            try:
-                img_url = search_image(query)
-            except Exception:
-                pass
-            
-            # Debugging logs
-            try:
-                with open(r"c:\Users\Pedro\Downloads\Ticket Tracker\debug_search.txt", "w", encoding="utf-8") as f_dbg:
-                    f_dbg.write(f"Query: {query}\n")
-                    f_dbg.write(f"Search Query: {search_q}\n")
-                    f_dbg.write(f"Active Serper Key: {repr(_active_serper_key())}\n")
-                    f_dbg.write(f"st.secrets keys: {list(st.secrets.keys()) if hasattr(st.secrets, 'keys') else 'No secrets.keys'}\n")
-                    f_dbg.write(f"os.environ SERPER_API_KEY: {repr(os.environ.get('SERPER_API_KEY'))}\n")
-                    f_dbg.write(f"Snippets count: {len(snippets)}\n")
-                    f_dbg.write(f"Image URL: {img_url}\n")
-            except Exception as e_dbg:
-                pass
-            
-            # 2. Call n8n webhook passing pre-fetched data
+            # 2. Call n8n webhook passing only the query
             payload = {
                 'query': query,
-                'search_context': context,
-                'pre_fetched_image': img_url
+                'search_context': '',
+                'pre_fetched_image': ''
             }
             
             resp = _req.post(

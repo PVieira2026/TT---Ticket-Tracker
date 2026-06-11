@@ -335,17 +335,47 @@ def _ask_n8n_ai(query):
             patched = True
 
         try:
-            # 2. Call n8n webhook passing only the query
+            # 1. Fetch search context locally to save Toqan 60+ seconds of searching
+            from scraper.sources.web_search_fallback import (
+                _clean_query, _search_serper, _search_duckduckgo, 
+                _search_google_direct, _active_serper_key, search_image
+            )
+            
+            search_q = _clean_query(query)
+            snippets = []
+            
+            if _active_serper_key():
+                snippets = _search_serper(search_q)
+            if not snippets:
+                snippets = _search_duckduckgo(search_q)
+            if not snippets:
+                snippets = _search_google_direct(search_q)
+                
+            context = ""
+            for i, s in enumerate(snippets[:6]):
+                title = s.get('title', '')
+                link = s.get('link', '')
+                snippet = s.get('snippet', '')
+                context += f"Result {i+1}:\nTitle: {title}\nLink: {link}\nSnippet: {snippet}\n\n"
+                
+            # Fetch image URL
+            img_url = ""
+            try:
+                img_url = search_image(query)
+            except Exception:
+                pass
+            
+            # 2. Call n8n webhook passing the snippets to give Toqan a massive head start
             payload = {
                 'query': query,
-                'search_context': '',
-                'pre_fetched_image': ''
+                'search_context': context,
+                'pre_fetched_image': img_url
             }
             
             resp = _req.post(
                 webhook_url,
                 json=payload,
-                timeout=(10, 45),  # Fast timeout since Toqan has context
+                timeout=(10, 90),  # Increased timeout since Claude + Web Search takes ~50s
                 proxies={"http": None, "https": None}  # Skip system proxy autodiscovery delays
             )
             result['status_code'] = resp.status_code

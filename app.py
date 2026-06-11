@@ -638,7 +638,7 @@ def _render_add_form():
     is_searching = st.session_state.get('ms', False) and st.session_state.get('mq', '').strip()
     
     if is_searching:
-        msg = "Hmm... deixa-me procurar na web e analisar os resultados da Inteligência Artificial..."
+        msg = "Hmm... deixa-me procurar na internet e analisar os resultados da Inteligência Artificial..."
         avatar_img = _get_assistant_avatar("thinking")
     elif 'mr' in st.session_state:
         msg = "Já está! Preenchi a data, o link e os preços para ti. Dá uma vista de olhos no formulário abaixo!"

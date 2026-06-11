@@ -282,9 +282,15 @@ def _parse_n8n_response(parsed):
     return parsed
 
 def _ask_n8n_ai(query):
-    """Calls n8n webhook. Uses short-timeout polling to avoid nginx 504 errors."""
+    """
+    Sends a query to n8n webhook and returns parsed JSON.
+    
+    Uses a background worker thread to periodically update the Streamlit UI.
+    This prevents the Streamlit main thread from blocking entirely during long
+    AI inference runs, ensuring the elapsed timer updates in real time for a better UX.
+    """
     import requests as _req
-    import time, os
+    import time, os, threading
     try:
         webhook_url = os.environ.get('N8N_WEBHOOK_URL') or st.secrets.get('N8N_WEBHOOK_URL', '')
     except Exception:
@@ -294,32 +300,58 @@ def _ask_n8n_ai(query):
         st.error("URL do Webhook n8n não configurado no .streamlit/secrets.toml (chave N8N_WEBHOOK_URL)!")
         return None
         
-    # — Strategy: use a split timeout tuple (connect, read).
-    # connect=10s fails fast if n8n is down.
-    # read=150s waits patiently for the AI response without a frozen UI.
-    try:
-        progress_slot = st.empty()
-        start = time.time()
-        progress_slot.caption(f"⏳ A aguardar resposta do Agente IA... (0s)")
+    result = {}
+    
+    def request_worker():
+        try:
+            resp = _req.post(
+                webhook_url,
+                json={'query': query},
+                timeout=(10, 150)  # Safe connect and read timeouts
+            )
+            result['status_code'] = resp.status_code
+            result['text'] = resp.text
+            try:
+                result['json'] = resp.json()
+            except Exception:
+                result['json'] = None
+        except _req.exceptions.Timeout:
+            result['error'] = 'timeout'
+        except Exception as e:
+            result['error'] = str(e)
 
-        resp = _req.post(
-            webhook_url,
-            json={'query': query},
-            timeout=(10, 150)  # (connect_timeout, read_timeout)
-        )
+    # Start network call in a background thread so Streamlit thread is not blocked
+    thread = threading.Thread(target=request_worker)
+    thread.start()
+
+    progress_slot = st.empty()
+    start = time.time()
+
+    # Poll the thread status and update the UI elapsed timer every second
+    while thread.is_alive():
         elapsed = int(time.time() - start)
-        progress_slot.caption(f"✅ Resposta recebida em {elapsed}s!")
+        progress_slot.caption(f"⏳ A aguardar resposta do Agente IA... ({elapsed}s)")
+        time.sleep(1)
 
-        if resp.status_code == 200:
-            parsed = resp.json()
-            return _parse_n8n_response(parsed)
+    thread.join()
+
+    elapsed = int(time.time() - start)
+
+    if 'error' in result:
+        if result['error'] == 'timeout':
+            st.error("⏱️ Tempo limite excedido. O Agente IA demorou demasiado. Tenta de novo ou simplifica o nome do evento.")
         else:
-            st.error(f"Erro do n8n: {resp.status_code} - {resp.text[:300]}")
-    except _req.exceptions.Timeout:
-        st.error("⏱️ Tempo limite excedido. O Agente IA demorou demasiado. Tenta de novo ou simplifica o nome do evento.")
-    except Exception as e:
-        st.error(f"Erro ao ligar ao n8n: {e}")
-    return None
+            st.error(f"Erro ao ligar ao n8n: {result['error']}")
+        return None
+
+    status_code = result.get('status_code')
+    if status_code == 200:
+        progress_slot.caption(f"✅ Resposta recebida em {elapsed}s!")
+        return _parse_n8n_response(result.get('json'))
+    else:
+        text = result.get('text', '')
+        st.error(f"Erro do n8n: {status_code} - {text[:300]}")
+        return None
 
 
 # ── Sheet operations ──────────────────────────────────────────────────────────

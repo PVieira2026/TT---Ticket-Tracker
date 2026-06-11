@@ -214,17 +214,18 @@ def search_image(event_name: str, event_date: str = '') -> str:
     
     return ''
 
-def scrape_urls_for_context(snippets: list) -> str:
-    """Scrapes the actual URLs found in snippets to provide deep context, avoiding 60s Toqan timeouts."""
+def scrape_urls_for_context(snippets: list) -> tuple:
+    """Scrapes the actual URLs found in snippets to provide deep context and official images, avoiding 60s Toqan timeouts."""
     try:
         import requests
         from bs4 import BeautifulSoup
         import re
     except ImportError:
-        return ""
+        return "", ""
     
     extracted_text = ""
     urls_to_scrape = []
+    official_image_url = ""
     
     for s in snippets:
         link = s.get('link', '')
@@ -242,6 +243,13 @@ def scrape_urls_for_context(snippets: list) -> str:
             resp = requests.get(url, headers=headers, timeout=5)
             if resp.status_code == 200:
                 soup = BeautifulSoup(resp.content, 'html.parser')
+                
+                # Extract official image from og:image if we don't have one yet
+                if not official_image_url:
+                    og_img = soup.find("meta", property="og:image")
+                    if og_img and og_img.get("content"):
+                        official_image_url = og_img["content"]
+                        
                 for script in soup(["script", "style"]):
                     script.extract()
                 text = soup.get_text(separator=' ')
@@ -250,4 +258,4 @@ def scrape_urls_for_context(snippets: list) -> str:
         except Exception as e:
             log.warning(f"Failed to scrape {url}: {e}")
             
-    return extracted_text
+    return extracted_text, official_image_url

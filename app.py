@@ -644,7 +644,7 @@ def _render_add_form():
         msg = "Já está! Preenchi a data, o link e os preços para ti. Dá uma vista de olhos no formulário abaixo!"
         avatar_img = _get_assistant_avatar("success")
     else:
-        msg = "Olá! Sou o assistente do TT. Escreve o nome de um concerto ou festival e eu pesquiso na web para te ajudar a preencher os dados automaticamente!"
+        msg = "Olá! Sou o assistente do TT. Escreve o nome de um concerto ou festival e eu pesquiso na internet para te ajudar a preencher os dados automaticamente!"
         avatar_img = _get_assistant_avatar("hello")
 
     clippy_html = f"""

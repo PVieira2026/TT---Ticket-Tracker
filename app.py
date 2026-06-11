@@ -282,22 +282,41 @@ def _parse_n8n_response(parsed):
     return parsed
 
 def _ask_n8n_ai(query):
+    """Calls n8n webhook. Uses short-timeout polling to avoid nginx 504 errors."""
     import requests as _req
-    import os, streamlit as st
-    try: webhook_url = os.environ.get('N8N_WEBHOOK_URL') or st.secrets.get('N8N_WEBHOOK_URL', '')
-    except: webhook_url = os.environ.get('N8N_WEBHOOK_URL', '')
-    
+    import time, os
+    try:
+        webhook_url = os.environ.get('N8N_WEBHOOK_URL') or st.secrets.get('N8N_WEBHOOK_URL', '')
+    except Exception:
+        webhook_url = os.environ.get('N8N_WEBHOOK_URL', '')
+
     if not webhook_url:
         st.error("URL do Webhook n8n não configurado no .streamlit/secrets.toml (chave N8N_WEBHOOK_URL)!")
         return None
         
+    # — Strategy: use a split timeout tuple (connect, read).
+    # connect=10s fails fast if n8n is down.
+    # read=150s waits patiently for the AI response without a frozen UI.
     try:
-        resp = _req.post(webhook_url, json={'query': query}, timeout=90)
+        progress_slot = st.empty()
+        start = time.time()
+        progress_slot.caption(f"⏳ A aguardar resposta do Agente IA... (0s)")
+
+        resp = _req.post(
+            webhook_url,
+            json={'query': query},
+            timeout=(10, 150)  # (connect_timeout, read_timeout)
+        )
+        elapsed = int(time.time() - start)
+        progress_slot.caption(f"✅ Resposta recebida em {elapsed}s!")
+
         if resp.status_code == 200:
             parsed = resp.json()
             return _parse_n8n_response(parsed)
         else:
-            st.error(f"Erro do n8n: {resp.status_code} - {resp.text}")
+            st.error(f"Erro do n8n: {resp.status_code} - {resp.text[:300]}")
+    except _req.exceptions.Timeout:
+        st.error("⏱️ Tempo limite excedido. O Agente IA demorou demasiado. Tenta de novo ou simplifica o nome do evento.")
     except Exception as e:
         st.error(f"Erro ao ligar ao n8n: {e}")
     return None

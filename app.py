@@ -303,11 +303,34 @@ def _ask_n8n_ai(query):
     result = {}
     
     def request_worker():
+        import socket
+        import urllib.parse
+        
+        # Parse host to force IPv4 resolution, bypassing Windows IPv6 lookup timeout delays
+        try:
+            parsed_url = urllib.parse.urlparse(webhook_url)
+            hostname = parsed_url.hostname
+        except Exception:
+            hostname = None
+
+        original_getaddrinfo = socket.getaddrinfo
+        patched = False
+
+        if hostname:
+            def ipv4_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+                if host == hostname:
+                    return original_getaddrinfo(host, port, socket.AF_INET, type, proto, flags)
+                return original_getaddrinfo(host, port, family, type, proto, flags)
+            
+            socket.getaddrinfo = ipv4_getaddrinfo
+            patched = True
+
         try:
             resp = _req.post(
                 webhook_url,
                 json={'query': query},
-                timeout=(10, 150)  # Safe connect and read timeouts
+                timeout=(10, 150),  # Safe connect and read timeouts
+                proxies={"http": None, "https": None}  # Skip system proxy autodiscovery delays
             )
             result['status_code'] = resp.status_code
             result['text'] = resp.text
@@ -319,6 +342,9 @@ def _ask_n8n_ai(query):
             result['error'] = 'timeout'
         except Exception as e:
             result['error'] = str(e)
+        finally:
+            if patched:
+                socket.getaddrinfo = original_getaddrinfo
 
     # Start network call in a background thread so Streamlit thread is not blocked
     thread = threading.Thread(target=request_worker)
@@ -731,6 +757,51 @@ def _render_add_form():
             if parsed:
                 st.session_state['mr'] = parsed
                 st.session_state['mn'] = q.strip()
+                
+                # Explicitly populate Streamlit widget keys to bypass cached empty state values on rerun
+                st.session_state['mm_n'] = parsed.get('name') or q.strip()
+                st.session_state['mm_u'] = parsed.get('url', '')
+                st.session_state['mm_img'] = parsed.get('image_url', '')
+                
+                # Align platform selectbox
+                plat = parsed.get('platform') or 'Outro'
+                if plat not in ['FNAC Bilheteira','Ticketline','Everything Is New','BOL','Blueticket','Outro']:
+                    plat = 'Outro'
+                st.session_state['mm_p'] = plat
+                
+                # Align category selectbox
+                cat = parsed.get('category') or 'Evento'
+                if cat not in ['Festival','Concerto','Evento']:
+                    cat = 'Evento'
+                st.session_state['mm_c'] = cat
+                
+                # Parse start and end dates
+                from datetime import date
+                try:
+                    ds = parsed.get('date_start')
+                    if ds:
+                        st.session_state['mm_d_start'] = date.fromisoformat(ds[:10])
+                except Exception:
+                    pass
+                    
+                try:
+                    de = parsed.get('date_end')
+                    if de:
+                        st.session_state['mm_d_end'] = date.fromisoformat(de[:10])
+                    else:
+                        st.session_state['mm_d_end'] = None
+                except Exception:
+                    st.session_state['mm_d_end'] = None
+                
+                # Sync prices and detailed list
+                st.session_state['mm_pn'] = str(parsed.get('price_min', ''))
+                st.session_state['mm_px'] = str(parsed.get('price_max', ''))
+                
+                det = parsed.get('tickets_detail', '')
+                if isinstance(det, list):
+                    det = '\n'.join(det)
+                st.session_state['mm_det'] = det
+                
                 st.rerun()
 
         if 'mr' in st.session_state:

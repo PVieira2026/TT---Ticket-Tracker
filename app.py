@@ -368,7 +368,7 @@ def _ask_n8n_ai(query):
             
             # Debugging logs
             try:
-                with open("debug_search.txt", "w", encoding="utf-8") as f_dbg:
+                with open(r"c:\Users\Pedro\Downloads\Ticket Tracker\debug_search.txt", "w", encoding="utf-8") as f_dbg:
                     f_dbg.write(f"Query: {query}\n")
                     f_dbg.write(f"Search Query: {search_q}\n")
                     f_dbg.write(f"Active Serper Key: {repr(_active_serper_key())}\n")
@@ -402,6 +402,11 @@ def _ask_n8n_ai(query):
             result['error'] = 'timeout'
         except Exception as e:
             result['error'] = str(e)
+            try:
+                with open(r"c:\Users\Pedro\Downloads\Ticket Tracker\debug_search.txt", "w", encoding="utf-8") as f_dbg:
+                    f_dbg.write(f"Exception occurred: {str(e)}\n")
+            except Exception:
+                pass
         finally:
             if patched:
                 socket.getaddrinfo = original_getaddrinfo

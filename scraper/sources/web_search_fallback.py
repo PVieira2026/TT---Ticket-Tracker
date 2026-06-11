@@ -10,9 +10,11 @@ SERPER_KEY_2=os.environ.get("SERPER_API_KEY_2","")
 
 
 def _active_serper_key():
-    """Return first available Serper key."""
-    if SERPER_KEY: return SERPER_KEY
-    if SERPER_KEY_2: return SERPER_KEY_2
+    """Return first available Serper key dynamically checking environment."""
+    key = os.environ.get("SERPER_API_KEY", "") or SERPER_KEY
+    if key: return key
+    key2 = os.environ.get("SERPER_API_KEY_2", "") or SERPER_KEY_2
+    if key2: return key2
     return ""
 
 

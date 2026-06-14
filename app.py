@@ -195,6 +195,12 @@ def relevance(row):
     highlight_val = str(row.get("highlight", "")).strip().lower()
     if highlight_val in ["true", "1", "x", "yes", "sim", "destaque"]:
         return 3
+    if highlight_val in ["false", "no", "não", "0"]:
+        name = str(row.get("name", ""))
+        url = str(row.get("url", ""))
+        t = (name + " " + url).lower()
+        if any(k in t for k in ["festival","altice","coliseu","pavilh","campo pequeno","arena"]): return 2
+        return 1
     name = str(row.get("name", ""))
     url = str(row.get("url", ""))
     t = (name + " " + url).lower()
@@ -823,7 +829,7 @@ def toggle_highlight_action(ev_id, is_highlighted):
         
         if ev_id in id_map:
             row_num = id_map[ev_id]
-            new_val = "" if is_highlighted else "TRUE"
+            new_val = "FALSE" if is_highlighted else "TRUE"
             ws.update_cell(row_num, col_idx, new_val)
             # Success toast
             if is_highlighted:
@@ -1016,7 +1022,7 @@ def render_card(row, card_idx=0):
                 with col_up:
                     st.button("🔄 Atualizar", key=up_key, use_container_width=True, on_click=set_state_value, args=(confirm_up_key, True))
                 with col_dest:
-                    is_currently_highlighted = str(row.get("highlight", "")).strip().lower() in ["true", "1", "x", "yes", "sim", "destaque"]
+                    is_currently_highlighted = (rel == 3)
                     dest_label = "⭐ Destacado" if is_currently_highlighted else "☆ Destacar"
                     st.button(dest_label, key=f"dest_{ev_id}_{card_idx}", use_container_width=True, on_click=toggle_highlight_action, args=(ev_id, is_currently_highlighted))
                 with col_del:
@@ -1034,7 +1040,7 @@ def render_card(row, card_idx=0):
                 with col_up:
                     st.button("🔄 Atualizar Info", key=up_key, use_container_width=True, on_click=set_state_value, args=(confirm_up_key, True))
                 with col_dest:
-                    is_currently_highlighted = str(row.get("highlight", "")).strip().lower() in ["true", "1", "x", "yes", "sim", "destaque"]
+                    is_currently_highlighted = (rel == 3)
                     dest_label = "⭐ Destacado" if is_currently_highlighted else "☆ Destacar"
                     st.button(dest_label, key=f"dest_{ev_id}_{card_idx}", use_container_width=True, on_click=toggle_highlight_action, args=(ev_id, is_currently_highlighted))
 

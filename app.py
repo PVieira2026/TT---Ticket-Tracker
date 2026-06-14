@@ -890,6 +890,12 @@ def render_card(row, card_idx=0):
         unsafe_allow_html=True
     )
 
+    # ── Inline background update action ───────────────────────────────────
+    if ev_id and SA_JSON and len(SA_JSON) > 50:
+        if st.session_state.get("pending_update") == ev_id:
+            st.session_state.pop("pending_update", None)
+            _trigger_update_action(row, ev_id)
+
     # ── Delete button (only for past events with SA_JSON) ────────────────
     if past and ev_id and SA_JSON and len(SA_JSON) > 50:
         confirm_del_key = f"confirm_del_{ev_id}_{card_idx}"
@@ -1245,13 +1251,9 @@ def main():
 
     # Check query params for event update trigger
     if "update_ev_id" in st.query_params:
-        ev_id_to_update = st.query_params["update_ev_id"]
+        st.session_state["pending_update"] = st.query_params["update_ev_id"]
         st.query_params.clear()
-        if not df_all.empty:
-            matched_rows = df_all[df_all["id"] == ev_id_to_update]
-            if not matched_rows.empty:
-                row_to_update = matched_rows.iloc[0]
-                _trigger_update_action(row_to_update, ev_id_to_update)
+        st.rerun()
 
     tot_all = len(df_all)
 

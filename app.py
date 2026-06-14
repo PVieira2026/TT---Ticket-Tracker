@@ -113,7 +113,7 @@ CSS = (
     ".r-concerto{background:#1E6FFF;}"
     ".r-festival{background:#FF6B2B;}"
     ".r-evento{background:#8B5CF6;}"
-    ".hot-badge{background:rgba(255,154,60,.2);color:#FF9A3C;font-size:.62rem;font-weight:700;padding:2px 8px;border-radius:20px;margin-left:6px;letter-spacing:.5px;border:1px solid rgba(255,154,60,.4);}"
+    ".hot-badge{background:rgba(0,0,0,0.35);color:#FFFFFF;font-size:.62rem;font-weight:700;padding:2px 8px;border-radius:20px;margin-left:8px;letter-spacing:.5px;border:1px solid rgba(255,255,255,0.3);}"
     ".manual-badge{background:rgba(0,214,143,.1);color:#00D68F;font-size:.6rem;font-weight:700;padding:1px 7px;border-radius:10px;margin-left:5px;border:1px solid rgba(0,214,143,.3);}"
     ".ev-body{padding:16px;flex:1;display:flex;flex-direction:column;}"
     ".ev-name{font-size:1.05rem;font-weight:700;color:#fff;margin:0 0 5px;line-height:1.3;}"

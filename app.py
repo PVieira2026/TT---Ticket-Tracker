@@ -4,6 +4,12 @@ from datetime import datetime, date, timedelta
 import streamlit as st
 import pandas as pd
 
+def set_state_value(key, val):
+    st.session_state[key] = val
+
+def pop_state_value(key):
+    st.session_state.pop(key, None)
+
 # Inject Streamlit secrets into environment variables so sub-modules can access them
 for k in ["SPREADSHEET_ID", "SHEET_GID", "GOOGLE_SERVICE_ACCOUNT_JSON", "SERPER_API_KEY", "SERPER_API_KEY_2", "N8N_WEBHOOK_URL"]:
     try:
@@ -911,18 +917,15 @@ def render_card(row, card_idx=0):
         
         if past:
             if st.session_state.get(confirm_up_key):
-                st.markdown('<p style="font-size:0.8rem;font-weight:600;margin-bottom:4px;color:var(--accent2);">Confirmar actualização?</p>', unsafe_allow_html=True)
                 co1, co2 = st.columns(2)
                 with co1:
                     if st.button("✅ Confirmar", key=f"yes_{up_key}", use_container_width=True, type="primary"):
                         st.session_state.pop(confirm_up_key, None)
                         _trigger_update_action(row, ev_id)
                 with co2:
-                    if st.button("❌ Cancelar", key=f"no_{up_key}", use_container_width=True):
-                        st.session_state.pop(confirm_up_key, None)
-                        st.rerun()
+                    st.button("❌ Cancelar", key=f"no_{up_key}", use_container_width=True, on_click=pop_state_value, args=(confirm_up_key,))
+                st.markdown('<p style="font-size:0.8rem;font-weight:600;margin-top:4px;color:var(--accent2);text-align:center;">Confirmar actualização?</p>', unsafe_allow_html=True)
             elif st.session_state.get(confirm_del_key):
-                st.markdown('<p style="font-size:0.8rem;font-weight:600;margin-bottom:4px;color:var(--danger);">Confirmar remoção?</p>', unsafe_allow_html=True)
                 co1, co2 = st.columns(2)
                 with co1:
                     if st.button("✅ Confirmar", key=f"yes_{del_key}", use_container_width=True, type="primary"):
@@ -931,35 +934,26 @@ def render_card(row, card_idx=0):
                             st.session_state.pop(confirm_del_key, None)
                             st.rerun()
                 with co2:
-                    if st.button("❌ Cancelar", key=f"no_{del_key}", use_container_width=True):
-                        st.session_state.pop(confirm_del_key, None)
-                        st.rerun()
+                    st.button("❌ Cancelar", key=f"no_{del_key}", use_container_width=True, on_click=pop_state_value, args=(confirm_del_key,))
+                st.markdown('<p style="font-size:0.8rem;font-weight:600;margin-top:4px;color:var(--danger);text-align:center;">Confirmar remoção?</p>', unsafe_allow_html=True)
             else:
                 col_up, col_del = st.columns(2)
                 with col_up:
-                    if st.button("🔄 Atualizar Info", key=up_key, use_container_width=True):
-                        st.session_state[confirm_up_key] = True
-                        st.rerun()
+                    st.button("🔄 Atualizar Info", key=up_key, use_container_width=True, on_click=set_state_value, args=(confirm_up_key, True))
                 with col_del:
-                    if st.button("🗑️ Remover do Sheet", key=del_key, use_container_width=True):
-                        st.session_state[confirm_del_key] = True
-                        st.rerun()
+                    st.button("🗑️ Remover do Sheet", key=del_key, use_container_width=True, on_click=set_state_value, args=(confirm_del_key, True))
         else:
             if st.session_state.get(confirm_up_key):
-                st.markdown('<p style="font-size:0.8rem;font-weight:600;margin-bottom:4px;color:var(--accent2);text-align:center;">Confirmar actualização?</p>', unsafe_allow_html=True)
                 co1, co2 = st.columns(2)
                 with co1:
                     if st.button("✅ Confirmar", key=f"yes_{up_key}", use_container_width=True, type="primary"):
                         st.session_state.pop(confirm_up_key, None)
                         _trigger_update_action(row, ev_id)
                 with co2:
-                    if st.button("❌ Cancelar", key=f"no_{up_key}", use_container_width=True):
-                        st.session_state.pop(confirm_up_key, None)
-                        st.rerun()
+                    st.button("❌ Cancelar", key=f"no_{up_key}", use_container_width=True, on_click=pop_state_value, args=(confirm_up_key,))
+                st.markdown('<p style="font-size:0.8rem;font-weight:600;margin-top:4px;color:var(--accent2);text-align:center;">Confirmar actualização?</p>', unsafe_allow_html=True)
             else:
-                if st.button("🔄 Atualizar Info", key=up_key, use_container_width=True):
-                    st.session_state[confirm_up_key] = True
-                    st.rerun()
+                st.button("🔄 Atualizar Info", key=up_key, use_container_width=True, on_click=set_state_value, args=(confirm_up_key, True))
 
 
 def render_grid(df, base_idx=0):

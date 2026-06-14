@@ -162,6 +162,10 @@ CSS = (
     ".clippy-search-btn:hover{background:#E5E5E5!important;border-color:#3C3C3C!important;}"
     ".clippy-avatar-box{animation:clippy-float 3s ease-in-out infinite;cursor:pointer;width:65px;height:65px;display:flex;align-items:center;justify-content:center;}"
     "@keyframes clippy-float{0%,100%{transform:translateY(0);}50%{transform:translateY(-5px);}}"
+    "/* ── Hourglass Rotation ── */"
+    "@keyframes spin{0%{transform:rotate(0deg);}100%{transform:rotate(360deg);}}"
+    ".rotating-hourglass{display:inline-block;animation:spin 2s linear infinite;font-size:1.2rem;margin-right:8px;vertical-align:middle;}"
+    ".loader-text{font-size:1rem;vertical-align:middle;}"
     "</style>"
 )
 st.markdown(CSS, unsafe_allow_html=True)
@@ -290,7 +294,7 @@ def _parse_n8n_response(parsed):
         return parsed['answer']
     return parsed
 
-def _ask_n8n_ai(query):
+def _ask_n8n_ai(query, existing_data=None):
     """
     Sends a query to n8n webhook and returns parsed JSON.
     
@@ -353,6 +357,19 @@ def _ask_n8n_ai(query):
                 snippets = _search_google_direct(search_q)
                 
             context = ""
+            official_img = ""
+            
+            # Prioritize existing_data URL if present
+            if existing_data and existing_data.get('url'):
+                try:
+                    ext_text, off_img = scrape_urls_for_context([{'link': existing_data['url']}])
+                    if ext_text:
+                        context += f"\n--- OFFICIAL PAGE ({existing_data['url']}) ---\n{ext_text}\n"
+                    if off_img:
+                        official_img = off_img
+                except Exception:
+                    pass
+
             for i, s in enumerate(snippets[:6]):
                 title = s.get('title', '')
                 link = s.get('link', '')
@@ -360,10 +377,11 @@ def _ask_n8n_ai(query):
                 context += f"Result {i+1}:\nTitle: {title}\nLink: {link}\nSnippet: {snippet}\n\n"
                 
             # Scrape full text and official image from the best URLs found
-            official_img = ""
             if snippets:
-                text_content, official_img = scrape_urls_for_context(snippets)
+                text_content, o_img = scrape_urls_for_context(snippets)
                 context += "\n" + text_content
+                if o_img and not official_img:
+                    official_img = o_img
                 
             # Fetch image URL (prefer official over Bing)
             img_url = official_img
@@ -379,6 +397,8 @@ def _ask_n8n_ai(query):
                 'search_context': context,
                 'pre_fetched_image': img_url
             }
+            if existing_data:
+                payload['existing_data'] = existing_data
             
             resp = _req.post(
                 webhook_url,
@@ -415,7 +435,10 @@ def _ask_n8n_ai(query):
     # Poll the thread status and update the UI elapsed timer every second
     while thread.is_alive():
         elapsed = int(time.time() - start)
-        progress_slot.caption(f"⏳ A obter dados na web e consultar o Agente IA... ({elapsed}s)")
+        progress_slot.markdown(
+            f'<div><span class="rotating-hourglass">⏳</span><span class="loader-text">A consultar a Inteligência Artificial... ({elapsed}s)</span></div>',
+            unsafe_allow_html=True
+        )
         time.sleep(1)
 
     thread.join()
@@ -423,6 +446,7 @@ def _ask_n8n_ai(query):
     elapsed = int(time.time() - start)
 
     if 'error' in result:
+        progress_slot.empty()
         if result['error'] == 'timeout':
             st.error("⏱️ Tempo limite excedido. O Agente IA demorou demasiado. Tenta de novo ou simplifica o nome do evento.")
         else:
@@ -431,9 +455,13 @@ def _ask_n8n_ai(query):
 
     status_code = result.get('status_code')
     if status_code == 200:
-        progress_slot.caption(f"✅ Resposta recebida em {elapsed}s!")
+        progress_slot.markdown(
+            f'<div><span style="font-size: 1.2rem; margin-right: 8px; vertical-align: middle;">✅</span><span class="loader-text">Resposta recebida em {elapsed}s!</span></div>',
+            unsafe_allow_html=True
+        )
         return _parse_n8n_response(result.get('json'))
     else:
+        progress_slot.empty()
         text = result.get('text', '')
         st.error(f"Erro do n8n: {status_code} - {text[:300]}")
         return None
@@ -441,6 +469,136 @@ def _ask_n8n_ai(query):
 
 
 # ── Sheet operations ──────────────────────────────────────────────────────────
+
+def _update_event_in_sheet(ev_id, updated_data, existing_data):
+    """Update event row in Google Sheets with merged n8n and existing data."""
+    if not SA_JSON or len(SA_JSON) < 50:
+        st.error("GOOGLE_SERVICE_ACCOUNT_JSON não configurado.")
+        return False
+    try:
+        import gspread
+        from google.oauth2.service_account import Credentials
+        SCOPES = ["https://www.googleapis.com/auth/spreadsheets",
+                  "https://www.googleapis.com/auth/drive.readonly"]
+        creds = Credentials.from_service_account_info(json.loads(SA_JSON), scopes=SCOPES)
+        gc = gspread.authorize(creds)
+        ws = gc.open_by_key(SPREADSHEET_ID).worksheet("Eventos")
+        
+        existing = ws.get_all_records()
+        row_num = None
+        for i, r in enumerate(existing):
+            if str(r.get('id','')) == str(ev_id):
+                row_num = i + 2  # +1 header, +1 0-indexed
+                break
+        
+        if not row_num:
+            # Fallback to name match if id mismatch
+            nm_to_match = existing_data.get('name', '')
+            for i, r in enumerate(existing):
+                if str(r.get('name','')).strip().lower() == nm_to_match.strip().lower():
+                    row_num = i + 2
+                    break
+                    
+        if not row_num:
+            st.error(f"Evento '{existing_data.get('name')}' não encontrado no Sheet.")
+            return False
+
+        # Merge values with fallbacks
+        nm = updated_data.get('name') or existing_data.get('name') or ''
+        plat = updated_data.get('platform') or existing_data.get('platform') or ''
+        cat = updated_data.get('category') or existing_data.get('category') or ''
+        
+        # date parsing
+        ds = updated_data.get('date_start') or updated_data.get('date') or existing_data.get('date') or ''
+        de = updated_data.get('date_end') or ''
+        
+        try:
+            ds_str = ds[:10] if ds else ""
+            de_str = de[:10] if de else ""
+            if de_str and ds_str and de_str > ds_str:
+                date_to_save = f"{ds_str}/{de_str}"
+            else:
+                date_to_save = ds_str
+        except Exception:
+            date_to_save = ds
+
+        ev_url = updated_data.get('url') or existing_data.get('url') or ''
+        ev_img = updated_data.get('image_url') or existing_data.get('image_url') or ''
+        
+        pmin = str(updated_data.get('price_min') if updated_data.get('price_min') is not None else (existing_data.get('price_min') or ''))
+        pmax = str(updated_data.get('price_max') if updated_data.get('price_max') is not None else (existing_data.get('price_max') or ''))
+        
+        detail = updated_data.get('tickets_detail')
+        if detail is None:
+            detail = existing_data.get('tickets_detail') or ''
+        if isinstance(detail, list):
+            detail = '\n'.join(detail)
+
+        # build tickets_json
+        lo = float(pmin.replace(',','.')) if pmin else 0.0
+        hi = float(pmax.replace(',','.')) if pmax else lo
+        rows_d = []
+        if detail:
+            for ln in detail.splitlines():
+                m3 = re.search(r'([^:]+):\s*(\d+(?:[,.]?\d+)?)\s*€', ln)
+                if m3:
+                    rows_d.append({'sector': m3.group(1).strip(),
+                                   'price': float(m3.group(2).replace(',','.')),
+                                   'note': '', 'sold_out': False})
+        if not rows_d and lo:
+            rows_d = [
+                {'sector':'Preço mínimo','price':lo,'note':'manual','sold_out':False},
+                {'sector':'Preço máximo','price':hi,'note':'manual','sold_out':False}
+            ]
+        prices_d = [r2['price'] for r2 in rows_d]
+        tj_save = (json.dumps({
+            'summary': {'min': min(prices_d), 'max': max(prices_d), 'currency': 'EUR'},
+            'categories': [{'name': 'Bilhetes', 'rows': rows_d}]
+        }, ensure_ascii=False) if prices_d else '')
+
+        row_data = [
+            ev_id, nm.strip(), date_to_save, plat, cat,
+            str(min(prices_d)) if prices_d else pmin,
+            str(max(prices_d)) if prices_d else pmax,
+            ev_url, ev_img, tj_save, detail,
+            datetime.utcnow().isoformat(), 'manual'
+        ]
+
+        ws.update(f'A{row_num}', [row_data])
+        st.cache_data.clear()
+        return True
+    except Exception as e:
+        st.error(f"Erro ao actualizar o Sheet: {e}")
+        return False
+
+def _trigger_update_action(row, ev_id):
+    """Initiate the background update call via n8n webhook and update the sheet."""
+    name = str(row.get("name","") or "")
+    plat = str(row.get("platform","") or "")
+    cat  = str(row.get("category","Evento") or "Evento")
+    url  = str(row.get("url","") or "")
+    img  = str(row.get("image_url","") or "")
+    td   = str(row.get("tickets_detail","") or "")
+    price_min = str(row.get("price_min","") or "")
+    price_max = str(row.get("price_max","") or "")
+    
+    existing_data = {
+        "name": name,
+        "date": row.get("date", ""),
+        "platform": plat,
+        "category": cat,
+        "url": url,
+        "image_url": img,
+        "price_min": price_min,
+        "price_max": price_max,
+        "tickets_detail": td
+    }
+    
+    parsed = _ask_n8n_ai(name, existing_data)
+    if parsed:
+        if _update_event_in_sheet(ev_id, parsed, existing_data):
+            st.toast(f"✅ Evento '{name}' atualizado com sucesso!")
+            st.rerun()
 
 def _delete_row_from_sheet(ev_id, ev_name):
     """Remove event row from Google Sheets by ID or name."""
@@ -634,7 +792,7 @@ def render_card(row, card_idx=0):
 
     # Ribbon + badges
     hb = '<span class="hot-badge">🔥 DESTAQUE</span>' if rel == 3 else ""
-    mb = '<span class="manual-badge">✏️ manual</span>' if is_manual else ""
+    mb = ""
     rb = f'<div class="ev-ribbon {rcls(cat)}">{cat}{hb}</div>'
 
     # Name
@@ -703,27 +861,40 @@ def render_card(row, card_idx=0):
         unsafe_allow_html=True
     )
 
-    # ── Delete button (only for past events with SA_JSON) ────────────────
-    if past and ev_id and SA_JSON and len(SA_JSON) > 50:
-        confirm_key = f"confirm_del_{ev_id}_{card_idx}"
-        del_key     = f"del_{ev_id}_{card_idx}"
-        if st.session_state.get(confirm_key):
-            co1, co2 = st.columns(2)
-            with co1:
-                if st.button("✅ Confirmar remoção", key=f"yes_{del_key}",
-                             use_container_width=True, type="primary"):
-                    if _delete_row_from_sheet(ev_id, name):
-                        st.success(f'"{name}" removido do Sheet!')
-                        st.session_state.pop(confirm_key, None)
+    # ── Action buttons (only if SA_JSON and SPREADSHEET_ID are set) ────────────────
+    if ev_id and SA_JSON and len(SA_JSON) > 50:
+        up_key = f"up_{ev_id}_{card_idx}"
+        del_key = f"del_{ev_id}_{card_idx}"
+        confirm_del_key = f"confirm_del_{ev_id}_{card_idx}"
+        
+        if past:
+            # Past event has BOTH buttons (if confirm deletion is not active)
+            if st.session_state.get(confirm_del_key):
+                co1, co2 = st.columns(2)
+                with co1:
+                    if st.button("✅ Confirmar remoção", key=f"yes_{del_key}",
+                                 use_container_width=True, type="primary"):
+                        if _delete_row_from_sheet(ev_id, name):
+                            st.success(f'"{name}" removido do Sheet!')
+                            st.session_state.pop(confirm_del_key, None)
+                            st.rerun()
+                with co2:
+                    if st.button("❌ Cancelar", key=f"no_{del_key}", use_container_width=True):
+                        st.session_state.pop(confirm_del_key, None)
                         st.rerun()
-            with co2:
-                if st.button("❌ Cancelar", key=f"no_{del_key}", use_container_width=True):
-                    st.session_state.pop(confirm_key, None)
-                    st.rerun()
+            else:
+                col_up, col_del = st.columns(2)
+                with col_up:
+                    if st.button("🔄 Atualizar Info", key=up_key, use_container_width=True):
+                        _trigger_update_action(row, ev_id)
+                with col_del:
+                    if st.button("🗑️ Remover do Sheet", key=del_key, use_container_width=True):
+                        st.session_state[confirm_del_key] = True
+                        st.rerun()
         else:
-            if st.button(f"🗑️ Remover do Sheet", key=del_key, use_container_width=True):
-                st.session_state[confirm_key] = True
-                st.rerun()
+            # Future event only has the Update button
+            if st.button("🔄 Atualizar Info", key=up_key, use_container_width=True):
+                _trigger_update_action(row, ev_id)
 
 
 def render_grid(df, base_idx=0):
@@ -812,8 +983,7 @@ def _render_add_form():
         go = st.button('Ir', use_container_width=True, key='ms')
             
         if go and q.strip():
-            with st.spinner('A consultar a Inteligência Artificial...'):
-                parsed = _ask_n8n_ai(q.strip())
+            parsed = _ask_n8n_ai(q.strip())
             if parsed:
                 st.session_state['mr'] = parsed
                 st.session_state['mn'] = q.strip()

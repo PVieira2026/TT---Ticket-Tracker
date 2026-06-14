@@ -180,7 +180,7 @@ st.markdown(CSS, unsafe_allow_html=True)
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 COLS = ["id","name","date","platform","category","price_min","price_max",
-        "url","image_url","tickets_json","tickets_detail","updated_at","scraper_status"]
+        "url","image_url","tickets_json","tickets_detail","updated_at","scraper_status","highlight"]
 HIGH_REL = [
     "coldplay","radiohead","ed sheeran","billie eilish","taylor swift","the weeknd",
     "beyonce","rihanna","adele","harry styles","depeche mode","the national","arcade fire",
@@ -191,7 +191,12 @@ HIGH_REL = [
     "primavera sound","rock in rio","evillive","meo mares","sudowoodo"
 ]
 
-def relevance(name, url=""):
+def relevance(row):
+    highlight_val = str(row.get("highlight", "")).strip().lower()
+    if highlight_val in ["true", "1", "x", "yes", "sim", "destaque"]:
+        return 3
+    name = str(row.get("name", ""))
+    url = str(row.get("url", ""))
     t = (name + " " + url).lower()
     if any(k in t for k in HIGH_REL): return 3
     if any(k in t for k in ["festival","altice","coliseu","pavilh","campo pequeno","arena"]): return 2
@@ -227,7 +232,7 @@ def load_data():
                 if c not in df.columns: df[c] = ""
             df["_date_start"], df["_date_end"] = zip(*df["date"].apply(_split_date_range))
             df["_dt"] = pd.to_datetime(df["_date_start"], errors="coerce")
-            df["_rel"] = df.apply(lambda r: relevance(r["name"], r.get("url", "")), axis=1)
+            df["_rel"] = df.apply(relevance, axis=1)
             df = _dedup_display(df)
             return df.sort_values(["_dt","_row_idx"], na_position="last").reset_index(drop=True)
         except Exception as e:
@@ -246,7 +251,7 @@ def load_data():
             if c not in df.columns: df[c] = ""
         df["_date_start"], df["_date_end"] = zip(*df["date"].apply(_split_date_range))
         df["_dt"] = pd.to_datetime(df["_date_start"], errors="coerce")
-        df["_rel"] = df.apply(lambda r: relevance(r["name"], r.get("url", "")), axis=1)
+        df["_rel"] = df.apply(relevance, axis=1)
         df = _dedup_display(df)
         return df.sort_values(["_dt","_row_idx"], na_position="last").reset_index(drop=True)
     except Exception as e:
@@ -484,7 +489,7 @@ def _ask_n8n_ai(query, existing_data=None, progress_slot=None):
         progress_slot.markdown(
             f'<div style="text-align: center; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 8px;">'
             f'<span style="font-size: 1.2rem; margin: 0; vertical-align: middle;">✅</span>'
-            f'<span class="loader-text">Resposta recebida em {elapsed}s!</span>'
+            f'<span class="loader-text">Pedido enviado para a Inteligência Artificial. Info e preços serão actualizados em breve</span>'
             f'</div>',
             unsafe_allow_html=True
         )
@@ -530,6 +535,8 @@ def _update_event_in_sheet(ev_id, updated_data, existing_data):
         if not row_num:
             st.error(f"Evento '{existing_data.get('name')}' não encontrado no Sheet.")
             return False
+
+        existing_highlight = str(existing[row_num - 2].get("highlight", ""))
 
         # Merge values with fallbacks
         nm = updated_data.get('name') or existing_data.get('name') or ''
@@ -597,7 +604,8 @@ def _update_event_in_sheet(ev_id, updated_data, existing_data):
             str(min(prices_d)) if prices_d else pmin,
             str(max(prices_d)) if prices_d else pmax,
             ev_url, ev_img, tj_save, detail,
-            datetime.utcnow().isoformat(), 'manual'
+            datetime.utcnow().isoformat(), 'manual',
+            existing_highlight
         ]
 
         ws.update(f'A{row_num}', [row_data])
@@ -786,6 +794,47 @@ def price_rows(tj, td):
         except: pass
     return []
 
+def toggle_highlight_action(ev_id, is_highlighted):
+    """Toggle the highlight status of an event in Google Sheets."""
+    if not SPREADSHEET_ID or not SA_JSON or len(SA_JSON) < 50:
+        st.error("Configurações do Google Sheets não encontradas.")
+        return
+    try:
+        import gspread
+        import json
+        from google.oauth2.service_account import Credentials
+        SCOPES = ["https://www.googleapis.com/auth/sheets" if "sheets" in SA_JSON else "https://www.googleapis.com/auth/spreadsheets"]
+        # Use standard scopes
+        SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+        creds = Credentials.from_service_account_info(json.loads(SA_JSON), scopes=SCOPES)
+        gc = gspread.authorize(creds)
+        ws = gc.open_by_key(SPREADSHEET_ID).worksheet("Eventos")
+        
+        # Get headers to find the column index for "highlight"
+        headers = [h.strip().lower() for h in ws.row_values(1)]
+        if "highlight" not in headers:
+            ws.update_cell(1, len(headers) + 1, "highlight")
+            headers.append("highlight")
+            
+        col_idx = headers.index("highlight") + 1
+        
+        existing = ws.get_all_records()
+        id_map = {str(r.get('id','')): i + 2 for i, r in enumerate(existing)}
+        
+        if ev_id in id_map:
+            row_num = id_map[ev_id]
+            new_val = "" if is_highlighted else "TRUE"
+            ws.update_cell(row_num, col_idx, new_val)
+            # Success toast
+            if is_highlighted:
+                st.toast("⭐ Destaque removido com sucesso!", icon="⭐")
+            else:
+                st.toast("🔥 Evento destacado com sucesso!", icon="🔥")
+        st.cache_data.clear()
+        st.rerun()
+    except Exception as e:
+        st.error(f"Erro ao atualizar destaque: {e}")
+
 # ── Card rendering ────────────────────────────────────────────────────────────
 
 def render_card(row, card_idx=0):
@@ -963,11 +1012,15 @@ def render_card(row, card_idx=0):
                     st.button("❌ Cancelar", key=f"no_{del_key}", use_container_width=True, on_click=pop_state_value, args=(confirm_del_key,))
                 st.markdown('<p style="font-size:0.75rem;font-weight:600;margin-top:6px;color:var(--danger);text-align:center;letter-spacing:0.5px;text-transform:uppercase;">Confirmar remoção</p>', unsafe_allow_html=True)
             else:
-                col_up, col_del = st.columns(2)
+                col_up, col_dest, col_del = st.columns([1.2, 1.2, 1])
                 with col_up:
-                    st.button("🔄 Atualizar Info", key=up_key, use_container_width=True, on_click=set_state_value, args=(confirm_up_key, True))
+                    st.button("🔄 Atualizar", key=up_key, use_container_width=True, on_click=set_state_value, args=(confirm_up_key, True))
+                with col_dest:
+                    is_currently_highlighted = str(row.get("highlight", "")).strip().lower() in ["true", "1", "x", "yes", "sim", "destaque"]
+                    dest_label = "⭐ Destacado" if is_currently_highlighted else "☆ Destacar"
+                    st.button(dest_label, key=f"dest_{ev_id}_{card_idx}", use_container_width=True, on_click=toggle_highlight_action, args=(ev_id, is_currently_highlighted))
                 with col_del:
-                    st.button("🗑️ Remover do Sheet", key=del_key, use_container_width=True, on_click=set_state_value, args=(confirm_del_key, True))
+                    st.button("🗑️ Remover", key=del_key, use_container_width=True, on_click=set_state_value, args=(confirm_del_key, True))
         else:
             if st.session_state.get(confirm_up_key):
                 co1, co2 = st.columns(2)
@@ -977,7 +1030,13 @@ def render_card(row, card_idx=0):
                     st.button("❌ Cancelar", key=f"no_{up_key}", use_container_width=True, on_click=pop_state_value, args=(confirm_up_key,))
                 st.markdown('<p style="font-size:0.75rem;font-weight:600;margin-top:6px;color:var(--muted);text-align:center;letter-spacing:0.5px;text-transform:uppercase;">Confirmar actualização</p>', unsafe_allow_html=True)
             else:
-                st.button("🔄 Atualizar Info", key=up_key, use_container_width=True, on_click=set_state_value, args=(confirm_up_key, True))
+                col_up, col_dest = st.columns(2)
+                with col_up:
+                    st.button("🔄 Atualizar Info", key=up_key, use_container_width=True, on_click=set_state_value, args=(confirm_up_key, True))
+                with col_dest:
+                    is_currently_highlighted = str(row.get("highlight", "")).strip().lower() in ["true", "1", "x", "yes", "sim", "destaque"]
+                    dest_label = "⭐ Destacado" if is_currently_highlighted else "☆ Destacar"
+                    st.button(dest_label, key=f"dest_{ev_id}_{card_idx}", use_container_width=True, on_click=toggle_highlight_action, args=(ev_id, is_currently_highlighted))
 
 
 def render_grid(df, base_idx=0):
@@ -1215,6 +1274,10 @@ def _render_add_form():
         detail = st.text_area('Bilhetes (linha por linha)', detail_val, height=90,
                              placeholder='Bilhete Diário: 25€\nPasse 3 dias: 75€', key='mm_det')
 
+    # ── Row 6: Highlight ──────────────────────────────────────────────────
+    _prefill_highlight = r.get('highlight', '') in ['TRUE', '1', 'x', 'yes', 'sim', 'destaque']
+    is_highlight = st.checkbox("🔥 Destacar este evento", value=_prefill_highlight, key='mm_highlight')
+
     st.markdown('<hr class="add-divider">', unsafe_allow_html=True)
 
     # ── Action buttons ────────────────────────────────────────────────────
@@ -1273,7 +1336,8 @@ def _render_add_form():
                         str(min(prices_d)) if prices_d else '',
                         str(max(prices_d)) if prices_d else '',
                         ev_url, final_img, tj_save, detail,
-                        datetime.utcnow().isoformat(), 'manual'
+                        datetime.utcnow().isoformat(), 'manual',
+                        "TRUE" if is_highlight else ""
                     ]
                     existing = ws.get_all_records()
                     id_map = {r2.get('id'): i + 2 for i, r2 in enumerate(existing)}

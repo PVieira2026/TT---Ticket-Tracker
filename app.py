@@ -922,6 +922,15 @@ def render_card(row, card_idx=0):
         updating_key = f"updating_{ev_id}_{card_idx}"
         
         if st.session_state.get(updating_key):
+            # Surgical overwrite to clear buttons and subtitle immediately from the browser
+            co1, co2 = st.columns(2)
+            with co1:
+                st.empty()
+            with co2:
+                st.empty()
+            st.markdown('<div style="display:none;"></div>', unsafe_allow_html=True)
+            
+            # Now show the progress slot at full width
             progress_slot = st.empty()
             st.session_state.pop(updating_key, None)
             _trigger_update_action(row, ev_id, progress_slot=progress_slot)

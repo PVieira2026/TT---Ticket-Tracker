@@ -399,7 +399,8 @@ def _ask_n8n_ai(query, existing_data=None):
             payload = {
                 'query': query,
                 'search_context': context,
-                'pre_fetched_image': img_url
+                'pre_fetched_image': img_url,
+                'spreadsheet_id': SPREADSHEET_ID
             }
             if existing_data:
                 payload['existing_data'] = existing_data
@@ -874,8 +875,8 @@ def render_card(row, card_idx=0):
     lk = f'<a href="{url}" target="_blank" class="src-link">ver fonte ↗</a>' if url else ""
     footer = f'<div class="ev-footer">{lk}</div>'
 
-    # Render card inside the styled container-wrap (includes dynamic category class)
-    card_html = (
+    # Render card (includes dynamic category class)
+    st.markdown(
         f'<div class="ev-card{card_cat_cls}{past_cls}">'
         f'<div class="ev-img-wrap">{img_block}{stamp}</div>'
         f'{rb}'
@@ -885,41 +886,44 @@ def render_card(row, card_idx=0):
         f'<div class="ev-meta">{meta_html}</div>'
         f'{pb}{footer}'
         f'</div>'
-        f'</div>'
+        f'</div>',
+        unsafe_allow_html=True
     )
-    
-    st.markdown('<div class="card-container-wrap">', unsafe_allow_html=True)
-    st.markdown(card_html, unsafe_allow_html=True)
-    
-    # Render native update button if credentials set and id exists
+
+    # ── Action buttons (only if SA_JSON and SPREADSHEET_ID are set) ────────────────
     if ev_id and SA_JSON and len(SA_JSON) > 50:
         up_key = f"up_{ev_id}_{card_idx}"
-        if st.button("🔄 Atualizar", key=up_key):
-            _trigger_update_action(row, ev_id)
-            
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    # ── Delete button (only for past events with SA_JSON) ────────────────
-    if past and ev_id and SA_JSON and len(SA_JSON) > 50:
+        del_key = f"del_{ev_id}_{card_idx}"
         confirm_del_key = f"confirm_del_{ev_id}_{card_idx}"
-        del_key     = f"del_{ev_id}_{card_idx}"
-        if st.session_state.get(confirm_del_key):
-            co1, co2 = st.columns(2)
-            with co1:
-                if st.button("✅ Confirmar remoção", key=f"yes_{del_key}",
-                             use_container_width=True, type="primary"):
-                    if _delete_row_from_sheet(ev_id, name):
-                        st.success(f'"{name}" removido do Sheet!')
+        
+        if past:
+            # Past event has BOTH buttons (if confirm deletion is not active)
+            if st.session_state.get(confirm_del_key):
+                co1, co2 = st.columns(2)
+                with co1:
+                    if st.button("✅ Confirmar remoção", key=f"yes_{del_key}",
+                                 use_container_width=True, type="primary"):
+                        if _delete_row_from_sheet(ev_id, name):
+                            st.success(f'"{name}" removido do Sheet!')
+                            st.session_state.pop(confirm_del_key, None)
+                            st.rerun()
+                with co2:
+                    if st.button("❌ Cancelar", key=f"no_{del_key}", use_container_width=True):
                         st.session_state.pop(confirm_del_key, None)
                         st.rerun()
-            with co2:
-                if st.button("❌ Cancelar", key=f"no_{del_key}", use_container_width=True):
-                    st.session_state.pop(confirm_del_key, None)
-                    st.rerun()
+            else:
+                col_up, col_del = st.columns(2)
+                with col_up:
+                    if st.button("🔄 Atualizar Info", key=up_key, use_container_width=True):
+                        _trigger_update_action(row, ev_id)
+                with col_del:
+                    if st.button("🗑️ Remover do Sheet", key=del_key, use_container_width=True):
+                        st.session_state[confirm_del_key] = True
+                        st.rerun()
         else:
-            if st.button(f"🗑️ Remover do Sheet", key=del_key, use_container_width=True):
-                st.session_state[confirm_del_key] = True
-                st.rerun()
+            # Future event only has the Update button
+            if st.button("🔄 Atualizar Info", key=up_key, use_container_width=True):
+                _trigger_update_action(row, ev_id)
 
 
 def render_grid(df, base_idx=0):

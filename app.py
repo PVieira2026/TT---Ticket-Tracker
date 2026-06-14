@@ -81,17 +81,11 @@ CSS = (
     ".stSelectbox>div>div{background:var(--card)!important;border:1px solid var(--border)!important;border-radius:10px!important;color:var(--text)!important;}"
     ".stTextArea textarea{background:var(--card)!important;border:1px solid var(--border)!important;border-radius:10px!important;color:var(--text)!important;}"
     "/* ── Tabs ── */"
-    ".stTabs [data-baseweb='tab-list']{gap:4px;background:transparent;border-bottom:1px solid var(--border)!important;}"
-    ".stTabs [data-baseweb='tab']{background:transparent;border:none;border-radius:8px 8px 0 0;color:var(--muted);font-weight:600;padding:10px 20px;font-size:.88rem;transition:color .15s;}"
+    ".stTabs [data-baseweb='tab-list']{gap:8px;background:transparent;border-bottom:1px solid var(--border)!important;}"
+    ".stTabs [data-baseweb='tab']{background:transparent;border:none;border-radius:8px 8px 0 0;color:var(--muted);font-weight:700;padding:14px 28px;font-size:1.05rem;transition:color .15s;}"
     ".stTabs [data-baseweb='tab']:hover{color:var(--text)!important;}"
     ".stTabs [aria-selected='true']{background:var(--card)!important;color:#fff!important;border-top:2px solid var(--accent)!important;}"
     ".stTabs [data-baseweb='tab-panel']{padding-top:18px;background:transparent;}"
-    "/* ── Stat pills ── */"
-    ".sp{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;text-align:center;transition:border-color .2s,box-shadow .2s,transform .15s;cursor:pointer;text-decoration:none!important;display:block;}"
-    ".sp:hover{border-color:rgba(255,92,53,.5);transform:translateY(-2px);box-shadow:0 6px 24px rgba(255,92,53,.14);}"
-    ".sp.sp-active{border-color:rgba(255,92,53,.7)!important;box-shadow:0 4px 20px rgba(255,92,53,.2)!important;}"
-    ".sp .n{font-family:'Outfit',sans-serif;font-size:1.7rem;font-weight:800;color:var(--accent);line-height:1;}"
-    ".sp .l{font-size:.68rem;color:var(--muted);margin-top:4px;text-transform:uppercase;letter-spacing:1px;}"
     "/* ── Event cards ── */"
     ".ev-concerto{--c-accent:#1E6FFF;--c-accent-rgb:30,111,255;}"
     ".ev-festival{--c-accent:#FF6B2B;--c-accent-rgb:255,107,43;}"
@@ -1395,65 +1389,31 @@ def main():
     # Apply sort/filter to full dataset
     f = df_all.sort_values("_dt", na_position="last").reset_index(drop=True)
 
-    # Static full dataset counts to display on pills
-    full_tot = len(df_all)
-    full_con = len(df_all[df_all["category"].str.contains("Concerto", case=False, na=False)])
-    full_fst = len(df_all[df_all["category"].str.contains("Festival", case=False, na=False)])
-    full_oth = full_tot - full_con - full_fst
-    full_hot = len(df_all[df_all["_rel"] == 3])
-
-    # ── STAT PILLS ────────────────────────────────────────────────────────
-    # Tab index per pill (matches st.tabs order: 0=Todos, 1=Concertos, 2=Festivais, 3=Outros)
-    pill_data = [
-        ("Total",         str(full_tot), 0),
-        ("Concertos",     str(full_con), 1),
-        ("Festivais",     str(full_fst), 2),
-        ("Outros",        str(full_oth), 3),
-        ("Destaque 🔥",   str(full_hot), 0),
-    ]
-    p_cols = st.columns(5)
-    for i, (label, num, tab_idx) in enumerate(pill_data):
-        # Use dispatchEvent — .click() alone doesn't trigger React synthetic events
-        click_action = (
-            f"(function(){{"
-            f"var tabs=document.querySelectorAll('[data-baseweb=\\'tab\\']');"
-            f"if(tabs&&tabs[{tab_idx}]){{tabs[{tab_idx}].dispatchEvent(new MouseEvent('click',{{bubbles:true,cancelable:true,view:window}}));}}"
-            f"document.querySelectorAll('.sp').forEach(function(p){{p.classList.remove('sp-active');}});"
-            f"this.classList.add('sp-active');"
-            f"}}).call(this)"
-        )
-        p_cols[i].markdown(
-            f'<div class="sp" onclick="{click_action}">'
-            f'<div class="n">{num}</div>'
-            f'<div class="l">{label}</div>'
-            f'</div>',
-            unsafe_allow_html=True
-        )
-
-    st.markdown("<br>", unsafe_allow_html=True)
-
     # Apply search to the active dataset
     if srch.strip():
         f = f[f["name"].str.contains(srch.strip(), case=False, na=False)]
 
     # Dynamic counts for tab headers based on the current filtered dataset f
     tot = len(f)
+    hot = len(f[f["_rel"] == 3])
     con = len(f[f["category"].str.contains("Concerto", case=False, na=False)])
     fst = len(f[f["category"].str.contains("Festival", case=False, na=False)])
     oth = tot - con - fst
 
     # ── TABS ──────────────────────────────────────────────────────────────
-    t1, t2, t3, t4 = st.tabs([
-        f"🎵 Todos ({tot})",
-        f"  🎤 Concertos ({con})",
-        f"  🎪 Festivais ({fst})",
-        f"  🎭 Outros ({oth})"
+    t1, t2, t3, t4, t5 = st.tabs([
+        f"🔥 Destaques ({hot})",
+        f"🎤 Concertos ({con})",
+        f"🎪 Festivais ({fst})",
+        f"🎭 Eventos ({oth})",
+        f"🎵 Todos ({tot})"
     ])
 
-    with t1: render_grid(f, base_idx=0)
+    with t1: render_grid(f[f["_rel"] == 3], base_idx=5000)
     with t2: render_grid(f[f["category"].str.contains("Concerto", case=False, na=False)], base_idx=1000)
     with t3: render_grid(f[f["category"].str.contains("Festival", case=False, na=False)], base_idx=2000)
     with t4: render_grid(f[~f["category"].str.contains("Concerto|Festival", case=False, na=False)], base_idx=3000)
+    with t5: render_grid(f, base_idx=0)
 
 if __name__ == "__main__":
     main()

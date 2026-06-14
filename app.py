@@ -681,10 +681,11 @@ def pp(v):
     try: return float(str(v).replace(",",".").strip())
     except: return 0.0
 
-def is_past_event(d_str):
-    """True if event start date is before today."""
+def is_past_event(d_start, d_end=""):
+    """True if event has already finished (using end date if available, otherwise start date)."""
     try:
-        return datetime.fromisoformat(str(d_str).strip()).date() < date.today()
+        ref_date = d_end.strip() if d_end and d_end.strip() else d_start.strip()
+        return datetime.fromisoformat(str(ref_date)).date() < date.today()
     except: return False
 
 def fd(d_str):
@@ -819,7 +820,7 @@ def render_card(row, card_idx=0):
         card_cat_cls = " ev-evento"
 
     # Past event?
-    past = is_past_event(d_start) if d_start else False
+    past = is_past_event(d_start, d_end) if d_start else False
     past_cls = " past-card" if past else ""
 
     # Date display

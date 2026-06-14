@@ -452,7 +452,10 @@ def _ask_n8n_ai(query, existing_data=None, progress_slot=None):
     while thread.is_alive():
         elapsed = int(time.time() - start)
         progress_slot.markdown(
-            f'<div><span class="rotating-hourglass">⏳</span><span class="loader-text">A consultar a Inteligência Artificial... ({elapsed}s)</span></div>',
+            f'<div style="text-align: center; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 8px;">'
+            f'<span class="rotating-hourglass" style="margin: 0;">⏳</span>'
+            f'<span class="loader-text">A consultar a Inteligência Artificial... ({elapsed}s)</span>'
+            f'</div>',
             unsafe_allow_html=True
         )
         time.sleep(1)
@@ -485,7 +488,10 @@ def _ask_n8n_ai(query, existing_data=None, progress_slot=None):
 
     if status_code == 200:
         progress_slot.markdown(
-            f'<div><span style="font-size: 1.2rem; margin-right: 8px; vertical-align: middle;">✅</span><span class="loader-text">Resposta recebida em {elapsed}s!</span></div>',
+            f'<div style="text-align: center; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 8px;">'
+            f'<span style="font-size: 1.2rem; margin: 0; vertical-align: middle;">✅</span>'
+            f'<span class="loader-text">Resposta recebida em {elapsed}s!</span>'
+            f'</div>',
             unsafe_allow_html=True
         )
         return _parse_n8n_response(result.get('json'))

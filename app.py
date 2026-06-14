@@ -1477,7 +1477,7 @@ def main():
         f"🎪 Festivais ({fst})",
         f"🎭 Eventos ({oth})",
         f"🎵 Todos ({tot})"
-    ])
+    ], key="main_tabs")
 
     with t1: render_grid(f[f["_rel"] == 3], base_idx=5000)
     with t2: render_grid(f[f["category"].str.contains("Concerto", case=False, na=False)], base_idx=1000)

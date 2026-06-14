@@ -10,6 +10,10 @@ def set_state_value(key, val):
 def pop_state_value(key):
     st.session_state.pop(key, None)
 
+def trigger_update_click(confirm_key, updating_key):
+    st.session_state.pop(confirm_key, None)
+    st.session_state[updating_key] = True
+
 # Inject Streamlit secrets into environment variables so sub-modules can access them
 for k in ["SPREADSHEET_ID", "SHEET_GID", "GOOGLE_SERVICE_ACCOUNT_JSON", "SERPER_API_KEY", "SERPER_API_KEY_2", "N8N_WEBHOOK_URL"]:
     try:
@@ -304,7 +308,7 @@ def _parse_n8n_response(parsed):
         return parsed['answer']
     return parsed
 
-def _ask_n8n_ai(query, existing_data=None):
+def _ask_n8n_ai(query, existing_data=None, progress_slot=None):
     """
     Sends a query to n8n webhook and returns parsed JSON.
     
@@ -440,7 +444,8 @@ def _ask_n8n_ai(query, existing_data=None):
     thread = threading.Thread(target=request_worker)
     thread.start()
 
-    progress_slot = st.empty()
+    if progress_slot is None:
+        progress_slot = st.empty()
     start = time.time()
 
     # Poll the thread status and update the UI elapsed timer every second
@@ -602,7 +607,7 @@ def _update_event_in_sheet(ev_id, updated_data, existing_data):
         st.error(f"Erro ao actualizar o Sheet: {e}")
         return False
 
-def _trigger_update_action(row, ev_id):
+def _trigger_update_action(row, ev_id, progress_slot=None):
     """Initiate the background update call via n8n webhook and update the sheet."""
     name = str(row.get("name","") or "")
     plat = str(row.get("platform","") or "")
@@ -625,7 +630,7 @@ def _trigger_update_action(row, ev_id):
         "tickets_detail": td
     }
     
-    parsed = _ask_n8n_ai(name, existing_data)
+    parsed = _ask_n8n_ai(name, existing_data, progress_slot=progress_slot)
     if parsed:
         if _update_event_in_sheet(ev_id, parsed, existing_data):
             st.toast(f"✅ Evento '{name}' atualizado com sucesso!")
@@ -914,17 +919,20 @@ def render_card(row, card_idx=0):
         del_key = f"del_{ev_id}_{card_idx}"
         confirm_up_key = f"confirm_up_{ev_id}_{card_idx}"
         confirm_del_key = f"confirm_del_{ev_id}_{card_idx}"
+        updating_key = f"updating_{ev_id}_{card_idx}"
         
-        if past:
+        if st.session_state.get(updating_key):
+            progress_slot = st.empty()
+            st.session_state.pop(updating_key, None)
+            _trigger_update_action(row, ev_id, progress_slot=progress_slot)
+        elif past:
             if st.session_state.get(confirm_up_key):
                 co1, co2 = st.columns(2)
                 with co1:
-                    if st.button("✅ Confirmar", key=f"yes_{up_key}", use_container_width=True, type="primary"):
-                        st.session_state.pop(confirm_up_key, None)
-                        _trigger_update_action(row, ev_id)
+                    st.button("✅ Confirmar", key=f"yes_{up_key}", use_container_width=True, type="primary", on_click=trigger_update_click, args=(confirm_up_key, updating_key))
                 with co2:
                     st.button("❌ Cancelar", key=f"no_{up_key}", use_container_width=True, on_click=pop_state_value, args=(confirm_up_key,))
-                st.markdown('<p style="font-size:0.8rem;font-weight:600;margin-top:4px;color:var(--accent2);text-align:center;">Confirmar actualização?</p>', unsafe_allow_html=True)
+                st.markdown('<p style="font-size:0.75rem;font-weight:600;margin-top:6px;color:var(--muted);text-align:center;letter-spacing:0.5px;text-transform:uppercase;">Confirmar actualização</p>', unsafe_allow_html=True)
             elif st.session_state.get(confirm_del_key):
                 co1, co2 = st.columns(2)
                 with co1:
@@ -935,7 +943,7 @@ def render_card(row, card_idx=0):
                             st.rerun()
                 with co2:
                     st.button("❌ Cancelar", key=f"no_{del_key}", use_container_width=True, on_click=pop_state_value, args=(confirm_del_key,))
-                st.markdown('<p style="font-size:0.8rem;font-weight:600;margin-top:4px;color:var(--danger);text-align:center;">Confirmar remoção?</p>', unsafe_allow_html=True)
+                st.markdown('<p style="font-size:0.75rem;font-weight:600;margin-top:6px;color:var(--danger);text-align:center;letter-spacing:0.5px;text-transform:uppercase;">Confirmar remoção</p>', unsafe_allow_html=True)
             else:
                 col_up, col_del = st.columns(2)
                 with col_up:
@@ -946,12 +954,10 @@ def render_card(row, card_idx=0):
             if st.session_state.get(confirm_up_key):
                 co1, co2 = st.columns(2)
                 with co1:
-                    if st.button("✅ Confirmar", key=f"yes_{up_key}", use_container_width=True, type="primary"):
-                        st.session_state.pop(confirm_up_key, None)
-                        _trigger_update_action(row, ev_id)
+                    st.button("✅ Confirmar", key=f"yes_{up_key}", use_container_width=True, type="primary", on_click=trigger_update_click, args=(confirm_up_key, updating_key))
                 with co2:
                     st.button("❌ Cancelar", key=f"no_{up_key}", use_container_width=True, on_click=pop_state_value, args=(confirm_up_key,))
-                st.markdown('<p style="font-size:0.8rem;font-weight:600;margin-top:4px;color:var(--accent2);text-align:center;">Confirmar actualização?</p>', unsafe_allow_html=True)
+                st.markdown('<p style="font-size:0.75rem;font-weight:600;margin-top:6px;color:var(--muted);text-align:center;letter-spacing:0.5px;text-transform:uppercase;">Confirmar actualização</p>', unsafe_allow_html=True)
             else:
                 st.button("🔄 Atualizar Info", key=up_key, use_container_width=True, on_click=set_state_value, args=(confirm_up_key, True))
 

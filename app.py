@@ -166,6 +166,8 @@ CSS = (
     "@keyframes spin{0%{transform:rotate(0deg);}100%{transform:rotate(360deg);}}"
     ".rotating-hourglass{display:inline-block;animation:spin 2s linear infinite;font-size:1.2rem;margin-right:8px;vertical-align:middle;}"
     ".loader-text{font-size:1rem;vertical-align:middle;}"
+    ".update-card-btn{color:var(--muted)!important;font-size:.72rem!important;text-decoration:none!important;transition:color .15s;cursor:pointer;display:flex;align-items:center;gap:3px;}"
+    ".update-card-btn:hover{color:var(--accent)!important;}"
     "</style>"
 )
 st.markdown(CSS, unsafe_allow_html=True)
@@ -545,6 +547,14 @@ def _update_event_in_sheet(ev_id, updated_data, existing_data):
                     rows_d.append({'sector': m3.group(1).strip(),
                                    'price': float(m3.group(2).replace(',','.')),
                                    'note': '', 'sold_out': False})
+            seen = set()
+            uniq_rows_d = []
+            for r2 in rows_d:
+                k = (r2['sector'].strip().lower(), r2['price'])
+                if k not in seen:
+                    seen.add(k)
+                    uniq_rows_d.append(r2)
+            rows_d = uniq_rows_d
         if not rows_d and lo:
             rows_d = [
                 {'sector':'Preço mínimo','price':lo,'note':'manual','sold_out':False},
@@ -708,7 +718,15 @@ def price_rows(tj, td):
                 if sec and price > 0:
                     rows.append({"sector": sec, "price": price, "note": "",
                                  "sold_out": "esgotado" in line.lower()})
-        if rows: return rows
+        if rows:
+            seen = set()
+            uniq = []
+            for r in rows:
+                k = (r["sector"].strip().lower(), r["price"])
+                if k not in seen:
+                    seen.add(k)
+                    uniq.append(r)
+            return uniq
     # Priority 2 — tickets_json (scraper output)
     if tj:
         try:
@@ -724,7 +742,15 @@ def price_rows(tj, td):
                         if pv and float(pv) > 0:
                             rows.append({"sector": sec, "price": float(pv), "note": pn,
                                          "sold_out": bool(sold or p.get("sold_out",False))})
-            if rows: return rows
+            if rows:
+                seen = set()
+                uniq = []
+                for r in rows:
+                    k = (r["sector"].strip().lower(), r["price"])
+                    if k not in seen:
+                        seen.add(k)
+                        uniq.append(r)
+                return uniq
         except: pass
     return []
 
@@ -844,7 +870,10 @@ def render_card(row, card_idx=0):
 
     # Footer link
     lk = f'<a href="{url}" target="_blank" class="src-link">ver fonte ↗</a>' if url else ""
-    footer = f'<div class="ev-footer">{lk}</div>'
+    up_btn_html = ""
+    if ev_id and SA_JSON and len(SA_JSON) > 50:
+        up_btn_html = f'<a href="?update_ev_id={ev_id}" target="_self" class="update-card-btn" title="Atualizar info">🔄 Atualizar</a>'
+    footer = f'<div class="ev-footer">{lk}{up_btn_html}</div>'
 
     # Render card (includes dynamic category class)
     st.markdown(
@@ -861,40 +890,27 @@ def render_card(row, card_idx=0):
         unsafe_allow_html=True
     )
 
-    # ── Action buttons (only if SA_JSON and SPREADSHEET_ID are set) ────────────────
-    if ev_id and SA_JSON and len(SA_JSON) > 50:
-        up_key = f"up_{ev_id}_{card_idx}"
-        del_key = f"del_{ev_id}_{card_idx}"
+    # ── Delete button (only for past events with SA_JSON) ────────────────
+    if past and ev_id and SA_JSON and len(SA_JSON) > 50:
         confirm_del_key = f"confirm_del_{ev_id}_{card_idx}"
-        
-        if past:
-            # Past event has BOTH buttons (if confirm deletion is not active)
-            if st.session_state.get(confirm_del_key):
-                co1, co2 = st.columns(2)
-                with co1:
-                    if st.button("✅ Confirmar remoção", key=f"yes_{del_key}",
-                                 use_container_width=True, type="primary"):
-                        if _delete_row_from_sheet(ev_id, name):
-                            st.success(f'"{name}" removido do Sheet!')
-                            st.session_state.pop(confirm_del_key, None)
-                            st.rerun()
-                with co2:
-                    if st.button("❌ Cancelar", key=f"no_{del_key}", use_container_width=True):
+        del_key     = f"del_{ev_id}_{card_idx}"
+        if st.session_state.get(confirm_del_key):
+            co1, co2 = st.columns(2)
+            with co1:
+                if st.button("✅ Confirmar remoção", key=f"yes_{del_key}",
+                             use_container_width=True, type="primary"):
+                    if _delete_row_from_sheet(ev_id, name):
+                        st.success(f'"{name}" removido do Sheet!')
                         st.session_state.pop(confirm_del_key, None)
                         st.rerun()
-            else:
-                col_up, col_del = st.columns(2)
-                with col_up:
-                    if st.button("🔄 Atualizar Info", key=up_key, use_container_width=True):
-                        _trigger_update_action(row, ev_id)
-                with col_del:
-                    if st.button("🗑️ Remover do Sheet", key=del_key, use_container_width=True):
-                        st.session_state[confirm_del_key] = True
-                        st.rerun()
+            with co2:
+                if st.button("❌ Cancelar", key=f"no_{del_key}", use_container_width=True):
+                    st.session_state.pop(confirm_del_key, None)
+                    st.rerun()
         else:
-            # Future event only has the Update button
-            if st.button("🔄 Atualizar Info", key=up_key, use_container_width=True):
-                _trigger_update_action(row, ev_id)
+            if st.button(f"🗑️ Remover do Sheet", key=del_key, use_container_width=True):
+                st.session_state[confirm_del_key] = True
+                st.rerun()
 
 
 def render_grid(df, base_idx=0):
@@ -1166,6 +1182,14 @@ def _render_add_form():
                                 rows_d.append({'sector': m3.group(1).strip(),
                                                'price': float(m3.group(2).replace(',','.')),
                                                'note': '', 'sold_out': False})
+                        seen = set()
+                        uniq_rows_d = []
+                        for r2 in rows_d:
+                            k = (r2['sector'].strip().lower(), r2['price'])
+                            if k not in seen:
+                                seen.add(k)
+                                uniq_rows_d.append(r2)
+                        rows_d = uniq_rows_d
                     if not rows_d and lo:
                         rows_d = [
                             {'sector':'Preço mínimo','price':lo,'note':'manual','sold_out':False},
@@ -1218,6 +1242,16 @@ def main():
     # Load data
     with st.spinner("A carregar eventos..."):
         df_all = get_data()
+
+    # Check query params for event update trigger
+    if "update_ev_id" in st.query_params:
+        ev_id_to_update = st.query_params["update_ev_id"]
+        st.query_params.clear()
+        if not df_all.empty:
+            matched_rows = df_all[df_all["id"] == ev_id_to_update]
+            if not matched_rows.empty:
+                row_to_update = matched_rows.iloc[0]
+                _trigger_update_action(row_to_update, ev_id_to_update)
 
     tot_all = len(df_all)
 

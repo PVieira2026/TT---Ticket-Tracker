@@ -450,15 +450,28 @@ def _ask_n8n_ai(query, existing_data=None):
 
     elapsed = int(time.time() - start)
 
-    if 'error' in result:
+    # Check for timeout or gateway timeout (504, 502, etc.)
+    is_timeout = False
+    status_code = result.get('status_code')
+    text = result.get('text', '')
+
+    if 'error' in result and result['error'] == 'timeout':
+        is_timeout = True
+    elif status_code in (504, 502, 503):
+        is_timeout = True
+    elif text and any(x in text for x in ["504 Gateway Time-out", "504 Gateway Timeout", "502 Bad Gateway", "503 Service Temporarily Unavailable"]):
+        is_timeout = True
+
+    if is_timeout:
         progress_slot.empty()
-        if result['error'] == 'timeout':
-            st.error("⏱️ Tempo limite excedido. O Agente IA demorou demasiado. Tenta de novo ou simplifica o nome do evento.")
-        else:
-            st.error(f"Erro ao ligar ao n8n: {result['error']}")
+        st.warning("⏱️ A consulta está a demorar mais tempo do que o previsto. No entanto, o processo continuará a correr em segundo plano e a informação será actualizada automaticamente no Google Sheets em breve. Não é necessário tentar novamente!")
         return None
 
-    status_code = result.get('status_code')
+    if 'error' in result:
+        progress_slot.empty()
+        st.error(f"Erro ao ligar ao n8n: {result['error']}")
+        return None
+
     if status_code == 200:
         progress_slot.markdown(
             f'<div><span style="font-size: 1.2rem; margin-right: 8px; vertical-align: middle;">✅</span><span class="loader-text">Resposta recebida em {elapsed}s!</span></div>',
@@ -467,7 +480,6 @@ def _ask_n8n_ai(query, existing_data=None):
         return _parse_n8n_response(result.get('json'))
     else:
         progress_slot.empty()
-        text = result.get('text', '')
         st.error(f"Erro do n8n: {status_code} - {text[:300]}")
         return None
 
@@ -894,15 +906,26 @@ def render_card(row, card_idx=0):
     if ev_id and SA_JSON and len(SA_JSON) > 50:
         up_key = f"up_{ev_id}_{card_idx}"
         del_key = f"del_{ev_id}_{card_idx}"
+        confirm_up_key = f"confirm_up_{ev_id}_{card_idx}"
         confirm_del_key = f"confirm_del_{ev_id}_{card_idx}"
         
         if past:
-            # Past event has BOTH buttons (if confirm deletion is not active)
-            if st.session_state.get(confirm_del_key):
+            if st.session_state.get(confirm_up_key):
+                st.markdown('<p style="font-size:0.8rem;font-weight:600;margin-bottom:4px;color:var(--accent2);">Confirmar actualização?</p>', unsafe_allow_html=True)
                 co1, co2 = st.columns(2)
                 with co1:
-                    if st.button("✅ Confirmar remoção", key=f"yes_{del_key}",
-                                 use_container_width=True, type="primary"):
+                    if st.button("✅ Confirmar", key=f"yes_{up_key}", use_container_width=True, type="primary"):
+                        st.session_state.pop(confirm_up_key, None)
+                        _trigger_update_action(row, ev_id)
+                with co2:
+                    if st.button("❌ Cancelar", key=f"no_{up_key}", use_container_width=True):
+                        st.session_state.pop(confirm_up_key, None)
+                        st.rerun()
+            elif st.session_state.get(confirm_del_key):
+                st.markdown('<p style="font-size:0.8rem;font-weight:600;margin-bottom:4px;color:var(--danger);">Confirmar remoção?</p>', unsafe_allow_html=True)
+                co1, co2 = st.columns(2)
+                with co1:
+                    if st.button("✅ Confirmar", key=f"yes_{del_key}", use_container_width=True, type="primary"):
                         if _delete_row_from_sheet(ev_id, name):
                             st.success(f'"{name}" removido do Sheet!')
                             st.session_state.pop(confirm_del_key, None)
@@ -915,15 +938,28 @@ def render_card(row, card_idx=0):
                 col_up, col_del = st.columns(2)
                 with col_up:
                     if st.button("🔄 Atualizar Info", key=up_key, use_container_width=True):
-                        _trigger_update_action(row, ev_id)
+                        st.session_state[confirm_up_key] = True
+                        st.rerun()
                 with col_del:
                     if st.button("🗑️ Remover do Sheet", key=del_key, use_container_width=True):
                         st.session_state[confirm_del_key] = True
                         st.rerun()
         else:
-            # Future event only has the Update button
-            if st.button("🔄 Atualizar Info", key=up_key, use_container_width=True):
-                _trigger_update_action(row, ev_id)
+            if st.session_state.get(confirm_up_key):
+                st.markdown('<p style="font-size:0.8rem;font-weight:600;margin-bottom:4px;color:var(--accent2);text-align:center;">Confirmar actualização?</p>', unsafe_allow_html=True)
+                co1, co2 = st.columns(2)
+                with co1:
+                    if st.button("✅ Confirmar", key=f"yes_{up_key}", use_container_width=True, type="primary"):
+                        st.session_state.pop(confirm_up_key, None)
+                        _trigger_update_action(row, ev_id)
+                with co2:
+                    if st.button("❌ Cancelar", key=f"no_{up_key}", use_container_width=True):
+                        st.session_state.pop(confirm_up_key, None)
+                        st.rerun()
+            else:
+                if st.button("🔄 Atualizar Info", key=up_key, use_container_width=True):
+                    st.session_state[confirm_up_key] = True
+                    st.rerun()
 
 
 def render_grid(df, base_idx=0):

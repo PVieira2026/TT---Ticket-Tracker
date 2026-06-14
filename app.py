@@ -670,6 +670,11 @@ def _delete_row_from_sheet(ev_id, ev_name):
         st.error(f"Erro ao remover: {e}")
         return False
 
+def trigger_delete_click(confirm_key, ev_id, ev_name):
+    st.session_state.pop(confirm_key, None)
+    if _delete_row_from_sheet(ev_id, ev_name):
+        st.toast(f"🗑️ Evento '{ev_name}' removido com sucesso!", icon="🗑️")
+
 # ── Display helpers ───────────────────────────────────────────────────────────
 
 def pp(v):
@@ -951,11 +956,14 @@ def render_card(row, card_idx=0):
             elif st.session_state.get(confirm_del_key):
                 co1, co2 = st.columns(2)
                 with co1:
-                    if st.button("✅ Confirmar", key=f"yes_{del_key}", use_container_width=True, type="primary"):
-                        if _delete_row_from_sheet(ev_id, name):
-                            st.success(f'"{name}" removido do Sheet!')
-                            st.session_state.pop(confirm_del_key, None)
-                            st.rerun()
+                    st.button(
+                        "✅ Confirmar",
+                        key=f"yes_{del_key}",
+                        use_container_width=True,
+                        type="primary",
+                        on_click=trigger_delete_click,
+                        args=(confirm_del_key, ev_id, name)
+                    )
                 with co2:
                     st.button("❌ Cancelar", key=f"no_{del_key}", use_container_width=True, on_click=pop_state_value, args=(confirm_del_key,))
                 st.markdown('<p style="font-size:0.75rem;font-weight:600;margin-top:6px;color:var(--danger);text-align:center;letter-spacing:0.5px;text-transform:uppercase;">Confirmar remoção</p>', unsafe_allow_html=True)

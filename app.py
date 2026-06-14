@@ -166,8 +166,10 @@ CSS = (
     "@keyframes spin{0%{transform:rotate(0deg);}100%{transform:rotate(360deg);}}"
     ".rotating-hourglass{display:inline-block;animation:spin 2s linear infinite;font-size:1.2rem;margin-right:8px;vertical-align:middle;}"
     ".loader-text{font-size:1rem;vertical-align:middle;}"
-    ".update-card-btn{color:var(--muted)!important;font-size:.72rem!important;text-decoration:none!important;transition:color .15s;cursor:pointer;display:flex;align-items:center;gap:3px;}"
-    ".update-card-btn:hover{color:var(--accent)!important;}"
+    ".card-container-wrap{position:relative;height:100%;}"
+    ".card-container-wrap div.stButton{position:absolute;bottom:24px;right:16px;z-index:99;}"
+    ".card-container-wrap div.stButton button{background:transparent!important;border:none!important;color:var(--muted)!important;font-size:.72rem!important;font-weight:500!important;padding:0!important;margin:0!important;height:auto!important;min-height:auto!important;line-height:normal!important;box-shadow:none!important;transition:color .15s!important;cursor:pointer!important;}"
+    ".card-container-wrap div.stButton button:hover{color:var(--accent)!important;background:transparent!important;transform:none!important;box-shadow:none!important;}"
     "</style>"
 )
 st.markdown(CSS, unsafe_allow_html=True)
@@ -834,7 +836,7 @@ def render_card(row, card_idx=0):
                 f'<span>{date_icon}</span><span>{date_display}</span></div>')
 
     # Prices block with working + categorias toggle (fixed single quotes and element selectors)
-    prows = price_rows(tj, td)
+    prows = sorted(price_rows(tj, td), key=lambda x: x["price"])
     if prows:
         import hashlib as _hlib
         _uid = "pr_" + _hlib.md5((name + str(card_idx)).encode()).hexdigest()[:8]
@@ -870,13 +872,10 @@ def render_card(row, card_idx=0):
 
     # Footer link
     lk = f'<a href="{url}" target="_blank" class="src-link">ver fonte ↗</a>' if url else ""
-    up_btn_html = ""
-    if ev_id and SA_JSON and len(SA_JSON) > 50:
-        up_btn_html = f'<a href="?update_ev_id={ev_id}" target="_self" class="update-card-btn" title="Atualizar info">🔄 Atualizar</a>'
-    footer = f'<div class="ev-footer">{lk}{up_btn_html}</div>'
+    footer = f'<div class="ev-footer">{lk}</div>'
 
-    # Render card (includes dynamic category class)
-    st.markdown(
+    # Render card inside the styled container-wrap (includes dynamic category class)
+    card_html = (
         f'<div class="ev-card{card_cat_cls}{past_cls}">'
         f'<div class="ev-img-wrap">{img_block}{stamp}</div>'
         f'{rb}'
@@ -886,15 +885,19 @@ def render_card(row, card_idx=0):
         f'<div class="ev-meta">{meta_html}</div>'
         f'{pb}{footer}'
         f'</div>'
-        f'</div>',
-        unsafe_allow_html=True
+        f'</div>'
     )
-
-    # ── Inline background update action ───────────────────────────────────
+    
+    st.markdown('<div class="card-container-wrap">', unsafe_allow_html=True)
+    st.markdown(card_html, unsafe_allow_html=True)
+    
+    # Render native update button if credentials set and id exists
     if ev_id and SA_JSON and len(SA_JSON) > 50:
-        if st.session_state.get("pending_update") == ev_id:
-            st.session_state.pop("pending_update", None)
+        up_key = f"up_{ev_id}_{card_idx}"
+        if st.button("🔄 Atualizar", key=up_key):
             _trigger_update_action(row, ev_id)
+            
+    st.markdown('</div>', unsafe_allow_html=True)
 
     # ── Delete button (only for past events with SA_JSON) ────────────────
     if past and ev_id and SA_JSON and len(SA_JSON) > 50:
@@ -1249,11 +1252,7 @@ def main():
     with st.spinner("A carregar eventos..."):
         df_all = get_data()
 
-    # Check query params for event update trigger
-    if "update_ev_id" in st.query_params:
-        st.session_state["pending_update"] = st.query_params["update_ev_id"]
-        st.query_params.clear()
-        st.rerun()
+
 
     tot_all = len(df_all)
 

@@ -242,7 +242,7 @@ def load_data():
             df = _dedup_display(df)
             return df.sort_values(["_dt","_row_idx"], na_position="last").reset_index(drop=True)
         except Exception as e:
-            st.toast(f"gspread: {e}", icon="⚠️")
+            print(f"load_data: gspread failed, falling back to CSV. Error: {e}")
     # Fallback: public CSV with cache-buster
     try:
         import time as _ct
@@ -261,7 +261,7 @@ def load_data():
         df = _dedup_display(df)
         return df.sort_values(["_dt","_row_idx"], na_position="last").reset_index(drop=True)
     except Exception as e:
-        st.error(f"Erro ao carregar dados: {e}")
+        print(f"load_data: fallback CSV failed. Error: {e}")
         return pd.DataFrame()
 
 def _split_date_range(d_str):
@@ -837,7 +837,6 @@ def toggle_highlight_action(ev_id, is_highlighted):
             else:
                 st.toast("🔥 Evento destacado com sucesso!", icon="🔥")
         st.cache_data.clear()
-        st.rerun()
     except Exception as e:
         st.error(f"Erro ao atualizar destaque: {e}")
 

@@ -56,72 +56,10 @@ CSS = (
     "div[data-testid='stWidgetLabel'] p,div[data-testid='stMarkdownContainer'] > p,div[data-testid='stMarkdownContainer'] > ul > li,div[data-testid='stMarkdownContainer'] > h1,div[data-testid='stMarkdownContainer'] > h2,div[data-testid='stMarkdownContainer'] > h3,div[data-testid='stMarkdownContainer'] > h4,.stMarkdown > p,.stMarkdown > span,.stMarkdown > li{color:var(--text)!important;}"
     "#MainMenu,footer,header{visibility:hidden;}"
     ".block-container{padding-top:0!important;max-width:1440px;}"
-    "/* ── Hero Glow Card Design ── */"
-    ".tt-hero{"
-    "  --radius:20;"
-    "  --border:2;"
-    "  --backdrop:rgba(17,13,30,0.65);"
-    "  --backup-border:rgba(139,92,246,.25);"
-    "  --size:320;"
-    "  --outer:1;"
-    "  --border-size:calc(var(--border,2)*1px);"
-    "  --spotlight-size:calc(var(--size,300)*1px);"
-    "  --base:340;"
-    "  --spread:80;"
-    "  --saturation:100;"
-    "  --lightness:62;"
-    "  --bg-spot-opacity:0.18;"
-    "  --border-spot-opacity:1;"
-    "  --border-light-opacity:0.6;"
-    "  --hue:calc(var(--base)-(var(--xp,0.5)*var(--spread,80)));"
-    "  position:relative;"
-    "  overflow:hidden;"
-    "  border-radius:20px;"
-    "  margin-bottom:16px;"
-    "  padding:0;"
-    "  border:var(--border-size) solid var(--backup-border);"
-    "  background-color:var(--backdrop);"
-    "  background-image:radial-gradient("
-    "    var(--spotlight-size) var(--spotlight-size) at"
-    "    calc(var(--x,400)*1px)"
-    "    calc(var(--y,100)*1px),"
-    "    hsl(var(--hue) calc(var(--saturation,100)*1%) calc(var(--lightness,62)*1%)/var(--bg-spot-opacity)),transparent"
-    "  );"
-    "}"
-    ".tt-hero::before,"
-    ".tt-hero::after{"
-    "  pointer-events:none;"
-    "  content:'';"
-    "  position:absolute;"
-    "  inset:calc(var(--border-size)*-1);"
-    "  border:var(--border-size) solid transparent;"
-    "  border-radius:calc(var(--radius)*1px);"
-    "  background-repeat:no-repeat;"
-    "  background-position:50% 50%;"
-    "  mask:linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);"
-    "  mask-composite:exclude;"
-    "  -webkit-mask:linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);"
-    "  -webkit-mask-composite:destination-out;"
-    "}"
-    ".tt-hero::before{"
-    "  background-image:radial-gradient("
-    "    calc(var(--spotlight-size)*1.2) calc(var(--spotlight-size)*1.2) at"
-    "    calc(var(--x,400)*1px)"
-    "    calc(var(--y,100)*1px),"
-    "    hsl(var(--hue) calc(var(--saturation,100)*1%) calc(var(--lightness,55)*1%)/var(--border-spot-opacity)),transparent 100%"
-    "  );"
-    "  filter:brightness(1.6);"
-    "}"
-    ".tt-hero::after{"
-    "  background-image:radial-gradient("
-    "    calc(var(--spotlight-size)*0.8) calc(var(--spotlight-size)*0.8) at"
-    "    calc(var(--x,400)*1px)"
-    "    calc(var(--y,100)*1px),"
-    "    hsl(0 100% 100%/var(--border-light-opacity)),transparent 100%"
-    "  );"
-    "}"
-    ".tt-hero-glow{display:none;}"
-    ".tt-hero-glow2{display:none;}"
+    "/* ── Hero ── */"
+    ".tt-hero{position:relative;overflow:hidden;background:linear-gradient(135deg,#1A0533 0%,#2D0B5A 30%,#4A1070 55%,#2D0B5A 80%,#1A0533 100%);border-radius:20px;margin-bottom:16px;padding:0;border:1px solid rgba(139,92,246,.3);box-shadow:0 20px 60px rgba(139,92,246,.2),0 0 0 1px rgba(255,92,53,.15);}"
+    ".tt-hero-glow{position:absolute;top:-40%;left:-10%;width:50%;height:200%;background:radial-gradient(ellipse,rgba(255,92,53,.18) 0%,transparent 65%);pointer-events:none;}"
+    ".tt-hero-glow2{position:absolute;top:-20%;right:-5%;width:40%;height:180%;background:radial-gradient(ellipse,rgba(139,92,246,.2) 0%,transparent 65%);pointer-events:none;}"
     ".tt-hero-inner{position:relative;z-index:1;padding:36px 40px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:12px;}"
     ".tt-logo-mark{width:56px;height:56px;border-radius:14px;flex-shrink:0;background:linear-gradient(135deg,#FF5C35,#FF9A3C);display:flex;align-items:center;justify-content:center;font-size:1.7rem;box-shadow:0 8px 24px rgba(255,92,53,.4);margin:0;}"
     ".tt-title-block{min-width:0;}"
@@ -241,35 +179,6 @@ CSS = (
     "</style>"
 )
 st.markdown(CSS, unsafe_allow_html=True)
-
-# Inject dynamic pointer coordinates mapping relative to the .tt-hero bounding box
-st.components.v1.html(
-    """
-    <script>
-    const parentWindow = window.parent;
-    const parentDoc = parentWindow.document;
-    if (!parentWindow.heroGlowInitialized) {
-      parentWindow.heroGlowInitialized = true;
-      parentDoc.addEventListener('pointermove', (e) => {
-        const x = e.clientX;
-        const y = e.clientY;
-        const hero = parentDoc.querySelector('.tt-hero');
-        if (hero) {
-          const rect = hero.getBoundingClientRect();
-          const localX = x - rect.left;
-          const localY = y - rect.top;
-          hero.style.setProperty('--x', localX.toFixed(2));
-          hero.style.setProperty('--xp', (localX / rect.width).toFixed(2));
-          hero.style.setProperty('--y', localY.toFixed(2));
-          hero.style.setProperty('--yp', (localY / rect.height).toFixed(2));
-        }
-      });
-    }
-    </script>
-    """,
-    height=0,
-    width=0
-)
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 COLS = ["id","name","date","platform","category","price_min","price_max",

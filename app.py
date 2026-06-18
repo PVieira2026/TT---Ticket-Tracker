@@ -52,6 +52,8 @@ CSS = (
     "  --danger:#EF4444;"
     "}"
     "html,body,[class*='css']{font-family:'Inter',sans-serif;background:var(--bg)!important;color:var(--text);}"
+    "[data-testid='stAppViewContainer'],[data-testid='stHeader'],[data-testid='stSidebar'],[data-testid='stSidebarUserContent']{background-color:var(--bg)!important;background:var(--bg)!important;}"
+    "div[data-testid='stWidgetLabel'] p,div[data-testid='stMarkdownContainer'] p,div[data-testid='stMarkdownContainer'] span,div[data-testid='stMarkdownContainer'] li,div[data-testid='stMarkdownContainer'] h1,div[data-testid='stMarkdownContainer'] h2,div[data-testid='stMarkdownContainer'] h3,div[data-testid='stMarkdownContainer'] h4,.stMarkdown p,.stMarkdown span,.stMarkdown li{color:var(--text)!important;}"
     "#MainMenu,footer,header{visibility:hidden;}"
     ".block-container{padding-top:0!important;max-width:1440px;}"
     "/* ── Hero ── */"
@@ -1096,7 +1098,7 @@ def _render_add_form():
         msg = "Hmm... deixa-me procurar na internet e analisar os resultados da Inteligência Artificial..."
         avatar_img = _get_assistant_avatar("thinking")
     elif 'mr' in st.session_state:
-        msg = "Já está! Preenchi a data, o link e os preços para ti. Dá uma vista de olhos no formulário abaixo!"
+        msg = "O pedido foi enviado para a IA, aguarda pela nova linha no google sheet."
         avatar_img = _get_assistant_avatar("success")
     else:
         msg = "Olá! Sou o assistente do TT. Escreve o nome de um concerto ou festival e eu pesquiso na internet para te ajudar a preencher os dados automaticamente!"

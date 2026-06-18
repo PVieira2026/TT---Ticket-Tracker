@@ -180,6 +180,116 @@ CSS = (
 )
 st.markdown(CSS, unsafe_allow_html=True)
 
+# Inject Sparkles background (tsParticles) in parent document
+st.components.v1.html(
+    """
+    <script>
+    const parentWindow = window.parent;
+    const parentDoc = parentWindow.document;
+
+    if (!parentWindow.tsParticlesLoaded) {
+      parentWindow.tsParticlesLoaded = true;
+
+      // Inject style to prevent particles canvas from blocking pointer events on Streamlit UI
+      const style = parentDoc.createElement('style');
+      style.innerHTML = `
+        #tsparticles {
+          pointer-events: none !important;
+        }
+      `;
+      parentDoc.head.appendChild(style);
+
+      // Load tsParticles bundle from cdnjs
+      const script = parentDoc.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/tsparticles/2.12.0/tsparticles.bundle.min.js';
+      script.onload = () => {
+        parentWindow.tsParticles.load({
+          id: "tsparticles",
+          options: {
+            fpsLimit: 120,
+            fullScreen: {
+              enable: true,
+              zIndex: -1
+            },
+            background: {
+              color: {
+                value: "transparent"
+              }
+            },
+            interactivity: {
+              detectsOn: "window",
+              events: {
+                onClick: {
+                  enable: true,
+                  mode: "push"
+                },
+                resize: true
+              },
+              modes: {
+                push: {
+                  quantity: 4
+                }
+              }
+            },
+            particles: {
+              color: {
+                value: "#ffffff"
+              },
+              move: {
+                direction: "none",
+                enable: true,
+                outModes: {
+                  default: "out"
+                },
+                random: false,
+                speed: {
+                  min: 0.1,
+                  max: 0.6
+                },
+                straight: false
+              },
+              number: {
+                density: {
+                  enable: true,
+                  width: 400,
+                  height: 400
+                },
+                value: 120
+              },
+              opacity: {
+                value: {
+                  min: 0.1,
+                  max: 0.8
+                },
+                animation: {
+                  enable: true,
+                  speed: 3,
+                  sync: false,
+                  startValue: "random"
+                }
+              },
+              shape: {
+                type: "circle"
+              },
+              size: {
+                value: {
+                  min: 1,
+                  max: 3
+                }
+              }
+            },
+            detectRetina: true
+          }
+        });
+      };
+      parentDoc.head.appendChild(script);
+    }
+    </script>
+    """,
+    height=0,
+    width=0
+)
+
 # ── Constants ─────────────────────────────────────────────────────────────────
 COLS = ["id","name","date","platform","category","price_min","price_max",
         "url","image_url","tickets_json","tickets_detail","updated_at","scraper_status","highlight"]

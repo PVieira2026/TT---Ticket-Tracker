@@ -190,10 +190,17 @@ st.components.v1.html(
     if (!parentWindow.tsParticlesLoaded) {
       parentWindow.tsParticlesLoaded = true;
 
+      // Create target element for tsParticles in the parent body
+      if (!parentDoc.getElementById('tsparticles')) {
+        const el = parentDoc.createElement('div');
+        el.id = 'tsparticles';
+        parentDoc.body.appendChild(el);
+      }
+
       // Inject style to prevent particles canvas from blocking pointer events on Streamlit UI
       const style = parentDoc.createElement('style');
       style.innerHTML = `
-        #tsparticles {
+        #tsparticles, #tsparticles canvas {
           pointer-events: none !important;
         }
       `;
@@ -203,83 +210,80 @@ st.components.v1.html(
       const script = parentDoc.createElement('script');
       script.src = 'https://cdnjs.cloudflare.com/ajax/libs/tsparticles/2.12.0/tsparticles.bundle.min.js';
       script.onload = () => {
-        parentWindow.tsParticles.load({
-          id: "tsparticles",
-          options: {
-            fpsLimit: 120,
-            fullScreen: {
-              enable: true,
-              zIndex: -1
-            },
-            background: {
-              color: {
-                value: "transparent"
-              }
-            },
-            interactivity: {
-              detectsOn: "window",
-              events: {
-                onClick: {
-                  enable: true,
-                  mode: "push"
-                },
-                resize: true
-              },
-              modes: {
-                push: {
-                  quantity: 4
-                }
-              }
-            },
-            particles: {
-              color: {
-                value: "#ffffff"
-              },
-              move: {
-                direction: "none",
+        parentWindow.tsParticles.load("tsparticles", {
+          fpsLimit: 120,
+          fullScreen: {
+            enable: true,
+            zIndex: -1
+          },
+          background: {
+            color: {
+              value: "transparent"
+            }
+          },
+          interactivity: {
+            detectsOn: "window",
+            events: {
+              onClick: {
                 enable: true,
-                outModes: {
-                  default: "out"
-                },
-                random: false,
-                speed: {
-                  min: 0.1,
-                  max: 0.6
-                },
-                straight: false
+                mode: "push"
               },
-              number: {
-                density: {
-                  enable: true,
-                  width: 400,
-                  height: 400
-                },
-                value: 120
+              resize: true
+            },
+            modes: {
+              push: {
+                quantity: 4
+              }
+            }
+          },
+          particles: {
+            color: {
+              value: "#ffffff"
+            },
+            move: {
+              direction: "none",
+              enable: true,
+              outModes: {
+                default: "out"
               },
-              opacity: {
-                value: {
-                  min: 0.1,
-                  max: 0.8
-                },
-                animation: {
-                  enable: true,
-                  speed: 3,
-                  sync: false,
-                  startValue: "random"
-                }
+              random: false,
+              speed: {
+                min: 0.1,
+                max: 0.6
               },
-              shape: {
-                type: "circle"
+              straight: false
+            },
+            number: {
+              density: {
+                enable: true,
+                width: 400,
+                height: 400
               },
-              size: {
-                value: {
-                  min: 1,
-                  max: 3
-                }
+              value: 120
+            },
+            opacity: {
+              value: {
+                min: 0.1,
+                max: 0.8
+              },
+              animation: {
+                enable: true,
+                speed: 3,
+                sync: false,
+                startValue: "random"
               }
             },
-            detectRetina: true
-          }
+            shape: {
+              type: "circle"
+            },
+            size: {
+              value: {
+                min: 1,
+                max: 3
+              }
+            }
+          },
+          detectRetina: true
         });
       };
       parentDoc.head.appendChild(script);

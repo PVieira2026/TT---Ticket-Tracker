@@ -56,10 +56,72 @@ CSS = (
     "div[data-testid='stWidgetLabel'] p,div[data-testid='stMarkdownContainer'] > p,div[data-testid='stMarkdownContainer'] > ul > li,div[data-testid='stMarkdownContainer'] > h1,div[data-testid='stMarkdownContainer'] > h2,div[data-testid='stMarkdownContainer'] > h3,div[data-testid='stMarkdownContainer'] > h4,.stMarkdown > p,.stMarkdown > span,.stMarkdown > li{color:var(--text)!important;}"
     "#MainMenu,footer,header{visibility:hidden;}"
     ".block-container{padding-top:0!important;max-width:1440px;}"
-    "/* ── Hero ── */"
-    ".tt-hero{position:relative;overflow:hidden;background:linear-gradient(135deg,#1A0533 0%,#2D0B5A 30%,#4A1070 55%,#2D0B5A 80%,#1A0533 100%);border-radius:20px;margin-bottom:16px;padding:0;border:1px solid rgba(139,92,246,.3);box-shadow:0 20px 60px rgba(139,92,246,.2),0 0 0 1px rgba(255,92,53,.15);}"
-    ".tt-hero-glow{position:absolute;top:-40%;left:-10%;width:50%;height:200%;background:radial-gradient(ellipse,rgba(255,92,53,.18) 0%,transparent 65%);pointer-events:none;}"
-    ".tt-hero-glow2{position:absolute;top:-20%;right:-5%;width:40%;height:180%;background:radial-gradient(ellipse,rgba(139,92,246,.2) 0%,transparent 65%);pointer-events:none;}"
+    "/* ── Hero Glow Card Design ── */"
+    ".tt-hero{"
+    "  --radius:20;"
+    "  --border:2;"
+    "  --backdrop:rgba(17,13,30,0.65);"
+    "  --backup-border:rgba(139,92,246,.25);"
+    "  --size:320;"
+    "  --outer:1;"
+    "  --border-size:calc(var(--border,2)*1px);"
+    "  --spotlight-size:calc(var(--size,300)*1px);"
+    "  --base:340;"
+    "  --spread:80;"
+    "  --saturation:100;"
+    "  --lightness:62;"
+    "  --bg-spot-opacity:0.18;"
+    "  --border-spot-opacity:1;"
+    "  --border-light-opacity:0.6;"
+    "  --hue:calc(var(--base)-(var(--xp,0.5)*var(--spread,80)));"
+    "  position:relative;"
+    "  overflow:hidden;"
+    "  border-radius:20px;"
+    "  margin-bottom:16px;"
+    "  padding:0;"
+    "  border:var(--border-size) solid var(--backup-border);"
+    "  background-color:var(--backdrop);"
+    "  background-image:radial-gradient("
+    "    var(--spotlight-size) var(--spotlight-size) at"
+    "    calc(var(--x,400)*1px)"
+    "    calc(var(--y,100)*1px),"
+    "    hsl(var(--hue) calc(var(--saturation,100)*1%) calc(var(--lightness,62)*1%)/var(--bg-spot-opacity)),transparent"
+    "  );"
+    "}"
+    ".tt-hero::before,"
+    ".tt-hero::after{"
+    "  pointer-events:none;"
+    "  content:'';"
+    "  position:absolute;"
+    "  inset:calc(var(--border-size)*-1);"
+    "  border:var(--border-size) solid transparent;"
+    "  border-radius:calc(var(--radius)*1px);"
+    "  background-repeat:no-repeat;"
+    "  background-position:50% 50%;"
+    "  mask:linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);"
+    "  mask-composite:exclude;"
+    "  -webkit-mask:linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);"
+    "  -webkit-mask-composite:destination-out;"
+    "}"
+    ".tt-hero::before{"
+    "  background-image:radial-gradient("
+    "    calc(var(--spotlight-size)*1.2) calc(var(--spotlight-size)*1.2) at"
+    "    calc(var(--x,400)*1px)"
+    "    calc(var(--y,100)*1px),"
+    "    hsl(var(--hue) calc(var(--saturation,100)*1%) calc(var(--lightness,55)*1%)/var(--border-spot-opacity)),transparent 100%"
+    "  );"
+    "  filter:brightness(1.6);"
+    "}"
+    ".tt-hero::after{"
+    "  background-image:radial-gradient("
+    "    calc(var(--spotlight-size)*0.8) calc(var(--spotlight-size)*0.8) at"
+    "    calc(var(--x,400)*1px)"
+    "    calc(var(--y,100)*1px),"
+    "    hsl(0 100% 100%/var(--border-light-opacity)),transparent 100%"
+    "  );"
+    "}"
+    ".tt-hero-glow{display:none;}"
+    ".tt-hero-glow2{display:none;}"
     ".tt-hero-inner{position:relative;z-index:1;padding:36px 40px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:12px;}"
     ".tt-logo-mark{width:56px;height:56px;border-radius:14px;flex-shrink:0;background:linear-gradient(135deg,#FF5C35,#FF9A3C);display:flex;align-items:center;justify-content:center;font-size:1.7rem;box-shadow:0 8px 24px rgba(255,92,53,.4);margin:0;}"
     ".tt-title-block{min-width:0;}"
@@ -93,9 +155,7 @@ CSS = (
     ".ev-festival{--c-accent:#FF6B2B;--c-accent-rgb:255,107,43;}"
     ".ev-evento{--c-accent:#8B5CF6;--c-accent-rgb:139,92,246;}"
     ".ev-card{background:var(--card);border:1px solid var(--border);border-radius:16px;overflow:hidden;transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease;display:flex;flex-direction:column;height:100%;position:relative;}"
-    ".ev-card:hover{transform:translateY(-4px);box-shadow:0 12px 40px rgba(var(--c-accent-rgb),.25),0 2px 8px rgba(0,0,0,.4);}"
-    ".ev-card:not([data-glow]):hover{border-color:var(--c-accent)!important;}"
-    ".ev-card[data-glow]:hover{border-color:transparent!important;--bg-spot-opacity:0.15;--border-spot-opacity:1;--border-light-opacity:0.8;}"
+    ".ev-card:hover{transform:translateY(-4px);border-color:var(--c-accent)!important;box-shadow:0 12px 40px rgba(var(--c-accent-rgb),.25),0 2px 8px rgba(0,0,0,.4);}"
     ".ev-img-wrap{position:relative;overflow:hidden;flex-shrink:0;}"
     ".ev-img{width:100%;height:200px;object-fit:cover;display:block;transition:filter .3s,opacity .3s;}"
     ".ev-noimg{width:100%;height:200px;display:flex;align-items:center;justify-content:center;font-size:3.5rem;background:linear-gradient(135deg,#1A0D35 0%,#2D1060 50%,#1A0D35 100%);}"
@@ -178,115 +238,31 @@ CSS = (
     ".card-container-wrap div.stButton{position:absolute;bottom:24px;right:16px;z-index:99;}"
     ".card-container-wrap div.stButton button{background:transparent!important;border:none!important;color:var(--muted)!important;font-size:.72rem!important;font-weight:500!important;padding:0!important;margin:0!important;height:auto!important;min-height:auto!important;line-height:normal!important;box-shadow:none!important;transition:color .15s!important;cursor:pointer!important;}"
     ".card-container-wrap div.stButton button:hover{color:var(--accent)!important;background:transparent!important;transform:none!important;box-shadow:none!important;}"
-    "/* ── Glow Card Styles ── */"
-    ".ev-card[data-glow]{"
-    "  --radius:14;"
-    "  --border:3;"
-    "  --backdrop:rgba(240,235,248,0.03);"
-    "  --backup-border:var(--backdrop);"
-    "  --size:200;"
-    "  --outer:1;"
-    "  --border-size:calc(var(--border,2)*1px);"
-    "  --spotlight-size:calc(var(--size,150)*1px);"
-    "  --hue:calc(var(--base)+(var(--xp,0)*var(--spread,0)));"
-    "  position:relative;"
-    "  touch-action:none;"
-    "  background-color:var(--backdrop,transparent);"
-    "  background-image:radial-gradient("
-    "    var(--spotlight-size) var(--spotlight-size) at"
-    "    calc(var(--x,0)*1px)"
-    "    calc(var(--y,0)*1px),"
-    "    hsl(var(--hue,210) calc(var(--saturation,100)*1%) calc(var(--lightness,70)*1%)/var(--bg-spot-opacity,0.15)),transparent"
-    "  );"
-    "  background-size:calc(100%+(2*var(--border-size))) calc(100%+(2*var(--border-size)));"
-    "  background-position:50% 50%;"
-    "  border:var(--border-size) solid var(--backup-border);"
-    "  border-radius:16px;"
-    "  backdrop-filter:blur(5px);"
-    "  --base:220;"
-    "  --spread:200;"
-    "  --saturation:100;"
-    "  --lightness:70;"
-    "  --bg-spot-opacity:0;"
-    "  --border-spot-opacity:0;"
-    "  --border-light-opacity:0;"
-    "}"
-    ".ev-card.ev-concerto[data-glow]{--base:220;--spread:200;}"
-    ".ev-card.ev-festival[data-glow]{--base:30;--spread:200;}"
-    ".ev-card.ev-evento[data-glow]{--base:280;--spread:300;}"
-    "[data-glow]::before,"
-    "[data-glow]::after{"
-    "  pointer-events:none;"
-    "  content:'';"
-    "  position:absolute;"
-    "  inset:calc(var(--border-size)*-1);"
-    "  border:var(--border-size) solid transparent;"
-    "  border-radius:calc(var(--radius)*1px);"
-    "  background-size:calc(100%+(2*var(--border-size))) calc(100%+(2*var(--border-size)));"
-    "  background-repeat:no-repeat;"
-    "  background-position:50% 50%;"
-    "  mask:linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);"
-    "  mask-composite:exclude;"
-    "  -webkit-mask:linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);"
-    "  -webkit-mask-composite:destination-out;"
-    "}"
-    "[data-glow]::before{"
-    "  background-image:radial-gradient("
-    "    calc(var(--spotlight-size)*0.75) calc(var(--spotlight-size)*0.75) at"
-    "    calc(var(--x,0)*1px)"
-    "    calc(var(--y,0)*1px),"
-    "    hsl(var(--hue,210) calc(var(--saturation,100)*1%) calc(var(--lightness,50)*1%)/var(--border-spot-opacity,1)),transparent 100%"
-    "  );"
-    "  filter:brightness(1.8);"
-    "}"
-    "[data-glow]::after{"
-    "  background-image:radial-gradient("
-    "    calc(var(--spotlight-size)*0.5) calc(var(--spotlight-size)*0.5) at"
-    "    calc(var(--x,0)*1px)"
-    "    calc(var(--y,0)*1px),"
-    "    hsl(0 100% 100%/var(--border-light-opacity,0.8)),transparent 100%"
-    "  );"
-    "}"
-    "[data-glow] [data-glow]{"
-    "  position:absolute;"
-    "  inset:0;"
-    "  will-change:filter;"
-    "  opacity:var(--outer,1);"
-    "  border-radius:calc(var(--radius)*1px);"
-    "  border-width:calc(var(--border-size)*20);"
-    "  filter:blur(calc(var(--border-size)*10));"
-    "  background:none;"
-    "  pointer-events:none;"
-    "  border:none;"
-    "}"
-    "[data-glow]>[data-glow]::before{"
-    "  inset:-10px;"
-    "  border-width:10px;"
-    "}"
     "</style>"
 )
 st.markdown(CSS, unsafe_allow_html=True)
 
-# Inject dynamic pointer coordinates mapping relative to each card's bounding box
+# Inject dynamic pointer coordinates mapping relative to the .tt-hero bounding box
 st.components.v1.html(
     """
     <script>
     const parentWindow = window.parent;
     const parentDoc = parentWindow.document;
-    if (!parentWindow.glowInitialized) {
-      parentWindow.glowInitialized = true;
+    if (!parentWindow.heroGlowInitialized) {
+      parentWindow.heroGlowInitialized = true;
       parentDoc.addEventListener('pointermove', (e) => {
         const x = e.clientX;
         const y = e.clientY;
-        parentDoc.querySelectorAll('.ev-card[data-glow]').forEach(card => {
-          const rect = card.getBoundingClientRect();
+        const hero = parentDoc.querySelector('.tt-hero');
+        if (hero) {
+          const rect = hero.getBoundingClientRect();
           const localX = x - rect.left;
           const localY = y - rect.top;
-          card.style.setProperty('--x', localX.toFixed(2));
-          card.style.setProperty('--xp', (localX / rect.width).toFixed(2));
-          card.style.setProperty('--y', localY.toFixed(2));
-          card.style.setProperty('--yp', (localY / rect.height).toFixed(2));
-        });
+          hero.style.setProperty('--x', localX.toFixed(2));
+          hero.style.setProperty('--xp', (localX / rect.width).toFixed(2));
+          hero.style.setProperty('--y', localY.toFixed(2));
+          hero.style.setProperty('--yp', (localY / rect.height).toFixed(2));
+        }
       });
     }
     </script>
@@ -1075,13 +1051,12 @@ def render_card(row, card_idx=0):
     lk = f'<a href="{url}" target="_blank" class="src-link">ver fonte ↗</a>' if url else ""
     footer = f'<div class="ev-footer">{lk}</div>'
 
-    # Render card (includes dynamic category class and data-glow)
+    # Render card (includes dynamic category class)
     st.markdown(
-        f'<div class="ev-card{card_cat_cls}{past_cls}" data-glow>'
-        f'<div data-glow></div>'
-        f'<div class="ev-img-wrap" style="z-index: 2; position: relative;">{img_block}{stamp}</div>'
-        f'<div style="z-index: 2; position: relative;">{rb}</div>'
-        f'<div class="ev-body" style="z-index: 2; position: relative;">'
+        f'<div class="ev-card{card_cat_cls}{past_cls}">'
+        f'<div class="ev-img-wrap">{img_block}{stamp}</div>'
+        f'{rb}'
+        f'<div class="ev-body">'
         f'{name_html}'
         f'{date_row}'
         f'<div class="ev-meta">{meta_html}</div>'

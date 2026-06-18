@@ -95,7 +95,7 @@ CSS = (
     ".ev-card{background:var(--card);border:1px solid var(--border);border-radius:16px;overflow:hidden;transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease;display:flex;flex-direction:column;height:100%;position:relative;}"
     ".ev-card:hover{transform:translateY(-4px);box-shadow:0 12px 40px rgba(var(--c-accent-rgb),.25),0 2px 8px rgba(0,0,0,.4);}"
     ".ev-card:not([data-glow]):hover{border-color:var(--c-accent)!important;}"
-    ".ev-card[data-glow]:hover{border-color:transparent!important;}"
+    ".ev-card[data-glow]:hover{border-color:transparent!important;--bg-spot-opacity:0.15;--border-spot-opacity:1;--border-light-opacity:0.8;}"
     ".ev-img-wrap{position:relative;overflow:hidden;flex-shrink:0;}"
     ".ev-img{width:100%;height:200px;object-fit:cover;display:block;transition:filter .3s,opacity .3s;}"
     ".ev-noimg{width:100%;height:200px;display:flex;align-items:center;justify-content:center;font-size:3.5rem;background:linear-gradient(135deg,#1A0D35 0%,#2D1060 50%,#1A0D35 100%);}"
@@ -200,7 +200,6 @@ CSS = (
     "  );"
     "  background-size:calc(100%+(2*var(--border-size))) calc(100%+(2*var(--border-size)));"
     "  background-position:50% 50%;"
-    "  background-attachment:fixed;"
     "  border:var(--border-size) solid var(--backup-border);"
     "  border-radius:16px;"
     "  backdrop-filter:blur(5px);"
@@ -208,9 +207,9 @@ CSS = (
     "  --spread:200;"
     "  --saturation:100;"
     "  --lightness:70;"
-    "  --bg-spot-opacity:0.12;"
-    "  --border-spot-opacity:1;"
-    "  --border-light-opacity:1;"
+    "  --bg-spot-opacity:0;"
+    "  --border-spot-opacity:0;"
+    "  --border-light-opacity:0;"
     "}"
     ".ev-card.ev-concerto[data-glow]{--base:220;--spread:200;}"
     ".ev-card.ev-festival[data-glow]{--base:30;--spread:200;}"
@@ -223,7 +222,6 @@ CSS = (
     "  inset:calc(var(--border-size)*-1);"
     "  border:var(--border-size) solid transparent;"
     "  border-radius:calc(var(--radius)*1px);"
-    "  background-attachment:fixed;"
     "  background-size:calc(100%+(2*var(--border-size))) calc(100%+(2*var(--border-size)));"
     "  background-repeat:no-repeat;"
     "  background-position:50% 50%;"
@@ -266,22 +264,36 @@ CSS = (
     "  border-width:10px;"
     "}"
     "</style>"
-    "<img src=\"x\" onerror=\""
-    "if(!window.glowInitialized){"
-    "  window.glowInitialized=true;"
-    "  document.addEventListener('pointermove',(e)=>{"
-    "    const x=e.clientX;const y=e.clientY;"
-    "    document.querySelectorAll('.ev-card').forEach(card=>{"
-    "      card.style.setProperty('--x',x.toFixed(2));"
-    "      card.style.setProperty('--xp',(x/window.innerWidth).toFixed(2));"
-    "      card.style.setProperty('--y',y.toFixed(2));"
-    "      card.style.setProperty('--yp',(y/window.innerHeight).toFixed(2));"
-    "    });"
-    "  });"
-    "}"
-    "\" style=\"display:none;\">"
 )
 st.markdown(CSS, unsafe_allow_html=True)
+
+# Inject dynamic pointer coordinates mapping relative to each card's bounding box
+st.components.v1.html(
+    """
+    <script>
+    const parentWindow = window.parent;
+    const parentDoc = parentWindow.document;
+    if (!parentWindow.glowInitialized) {
+      parentWindow.glowInitialized = true;
+      parentDoc.addEventListener('pointermove', (e) => {
+        const x = e.clientX;
+        const y = e.clientY;
+        parentDoc.querySelectorAll('.ev-card[data-glow]').forEach(card => {
+          const rect = card.getBoundingClientRect();
+          const localX = x - rect.left;
+          const localY = y - rect.top;
+          card.style.setProperty('--x', localX.toFixed(2));
+          card.style.setProperty('--xp', (localX / rect.width).toFixed(2));
+          card.style.setProperty('--y', localY.toFixed(2));
+          card.style.setProperty('--yp', (localY / rect.height).toFixed(2));
+        });
+      });
+    }
+    </script>
+    """,
+    height=0,
+    width=0
+)
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 COLS = ["id","name","date","platform","category","price_min","price_max",

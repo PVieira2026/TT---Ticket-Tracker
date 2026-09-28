@@ -15,7 +15,7 @@ def trigger_update_click(confirm_key, updating_key):
     st.session_state[updating_key] = True
 
 # Inject Streamlit secrets into environment variables so sub-modules can access them
-for k in ["SPREADSHEET_ID", "SHEET_GID", "GOOGLE_SERVICE_ACCOUNT_JSON", "SERPER_API_KEY", "SERPER_API_KEY_2", "N8N_WEBHOOK_URL"]:
+for k in ["SPREADSHEET_ID", "SHEET_GID", "GOOGLE_SERVICE_ACCOUNT_JSON", "SERPER_API_KEY", "SERPER_API_KEY_2", "N8N_WEBHOOK_URL", "N8N_WEBHOOK_TOKEN"]:
     try:
         val = st.secrets.get(k) or st.secrets.get(k.lower())
         if val and not os.environ.get(k):
@@ -423,10 +423,21 @@ def _ask_n8n_ai(query, existing_data=None, progress_slot=None):
             }
             if existing_data:
                 payload['existing_data'] = existing_data
+
+            headers = {}
+            token = os.environ.get('N8N_WEBHOOK_TOKEN')
+            if not token:
+                try:
+                    token = st.secrets.get('N8N_WEBHOOK_TOKEN', '')
+                except Exception:
+                    token = ''
+            if token:
+                headers['X-N8N-API-KEY'] = token
             
             resp = _req.post(
                 webhook_url,
                 json=payload,
+                headers=headers,
                 timeout=(10, 90),  # Increased timeout since Claude + Web Search takes ~50s
                 proxies={"http": None, "https": None}  # Skip system proxy autodiscovery delays
             )

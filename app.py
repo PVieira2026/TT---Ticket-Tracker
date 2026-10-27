@@ -236,7 +236,7 @@ def load_data():
             creds = Credentials.from_service_account_info(json.loads(SA_JSON), scopes=SCOPES)
             gc = gspread.authorize(creds)
             ws = gc.open_by_key(SPREADSHEET_ID).worksheet("Eventos")
-            df = pd.DataFrame(ws.get_all_records()).fillna("")
+            df = pd.DataFrame(ws.get_all_records(numericise_ignore=["all"])).fillna("").astype(str)
             df["_row_idx"] = range(len(df))
             for c in COLS:
                 if c not in df.columns: df[c] = ""
@@ -285,6 +285,8 @@ def _dedup_display(df):
     """Deduplicate by normalised name. Manual/locked rows always win."""
     import re as _r
     if df.empty: return df
+    for _c in ('name','price_min','tickets_detail','scraper_status'):
+        if _c in df.columns: df[_c] = df[_c].astype(str)
     def norm(n): return ' '.join(sorted(_r.sub(r'[^a-z0-9\s]', ' ', n.lower()).split()))
     df['_norm'] = df['name'].apply(norm)
     _MANUAL_STATUSES = {'manual', 'locked', 'manual-locked'}
